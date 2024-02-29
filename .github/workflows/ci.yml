@@ -34,5 +34,5 @@ jobs:
       - name: "Upload binary"
         uses: actions/upload-artifact@v3
         with:
-          name: led.uf2
-          path: build/led.uf2
+          name: weather.uf2
+          path: build/weather.uf2

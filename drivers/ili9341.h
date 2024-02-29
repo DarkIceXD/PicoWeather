@@ -10,7 +10,7 @@
 struct ili9341_display
 {
     spi_inst_t *spi_port;
-    uint sck, tx, reset, dc, cs;
+    uint reset, dc, cs;
 };
 
 void ili9341_init(struct ili9341_display *display, spi_inst_t *spi_port, const uint sck, const uint tx, const uint reset, const uint dc, const uint cs);

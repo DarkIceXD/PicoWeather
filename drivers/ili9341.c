@@ -117,11 +117,16 @@ static void command_with_data(const struct ili9341_display *display, const uint8
     gpio_put(display->cs, 1);
 }
 
-static void init(const struct ili9341_display *display)
+void ili9341_init(struct ili9341_display *display, spi_inst_t *spi_port, const uint sck, const uint tx, const uint reset, const uint dc, const uint cs)
 {
+    display->spi_port = spi_port;
+    display->reset = reset;
+    display->dc = dc;
+    display->cs = cs;
+
     spi_init(display->spi_port, 62500000);
-    gpio_set_function(display->sck, GPIO_FUNC_SPI);
-    gpio_set_function(display->tx, GPIO_FUNC_SPI);
+    gpio_set_function(sck, GPIO_FUNC_SPI);
+    gpio_set_function(tx, GPIO_FUNC_SPI);
 
     gpio_init(display->reset);
     gpio_set_dir(display->reset, GPIO_OUT);
@@ -149,17 +154,6 @@ static void init(const struct ili9341_display *display)
     sleep_ms(120);
 
     command(display, ILI9341_DISPON);
-}
-
-void ili9341_init(struct ili9341_display *display, spi_inst_t *spi_port, const uint sck, const uint tx, const uint reset, const uint dc, const uint cs)
-{
-    display->spi_port = spi_port;
-    display->sck = sck;
-    display->tx = tx;
-    display->reset = reset;
-    display->dc = dc;
-    display->cs = cs;
-    init(display);
 }
 
 void ili9341_rotate(const struct ili9341_display *display, int degrees, bool use_bgr)

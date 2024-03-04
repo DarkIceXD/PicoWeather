@@ -99,6 +99,9 @@
 #define ILI9341_GAM3CTRL 0xF2      /* [8.4.7] Enable 3 gamma control */
 #define ILI9341_PUMPRATIO 0xF7     /* [8.4.8] Pump ratio control */
 
+#define SCREEN_WIDTH 240
+#define SCREEN_HEIGHT 320
+
 static void command(const struct ili9341_display *display, const uint8_t command)
 {
     gpio_put(display->cs, 0);
@@ -156,22 +159,30 @@ void ili9341_init(struct ili9341_display *display, spi_inst_t *spi_port, const u
     command(display, ILI9341_DISPON);
 }
 
-void ili9341_rotate(const struct ili9341_display *display, int degrees, bool use_bgr)
+void ili9341_rotate(struct ili9341_display *display, int degrees, bool use_bgr)
 {
     const uint8_t color_order = use_bgr ? MADCTL_BGR : MADCTL_RGB;
     switch (degrees)
     {
     case 270:
         command_with_data(display, ILI9341_MADCTL, (uint8_t[]){MADCTL_MV | color_order}, 1);
+        display->width = 320;
+        display->height = 240;
         break;
     case 180:
         command_with_data(display, ILI9341_MADCTL, (uint8_t[]){MADCTL_MY | color_order}, 1);
+        display->width = 240;
+        display->height = 320;
         break;
     case 90:
         command_with_data(display, ILI9341_MADCTL, (uint8_t[]){MADCTL_MX | MADCTL_MY | MADCTL_MV | color_order}, 1);
+        display->width = 320;
+        display->height = 240;
         break;
     default:
         command_with_data(display, ILI9341_MADCTL, (uint8_t[]){MADCTL_MX | color_order}, 1);
+        display->width = 240;
+        display->height = 320;
         break;
     }
 }

@@ -14,12 +14,12 @@ pico_sdk_init()
 
 add_compile_options(-Wall -Wextra -Wpedantic)
 
-add_executable(weather weather.c temperature_sensor/temperature_sensor.c drivers/ili9341.c drivers/ccs811.c)
+add_executable(weather weather.c temperature_sensor/temperature_sensor.c drivers/ili9341.c drivers/ccs811.c ui/ui.c)
 
 pico_enable_stdio_uart(weather 0)
 pico_enable_stdio_usb(weather 1)
 
-target_link_libraries(weather pico_stdlib hardware_adc hardware_spi hardware_i2c lvgl::lvgl)
+target_link_libraries(weather pico_stdlib hardware_rtc hardware_adc hardware_spi hardware_i2c lvgl::lvgl)
 
 pico_add_extra_outputs(weather)
 

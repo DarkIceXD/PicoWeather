@@ -106,8 +106,8 @@ uint8_t ccs811_read_data(struct ccs811_sensor *sensor)
     if (!(status & CCS811_STATUS_DATA_READY))
         return false;
 
-    sensor->data.eco2 = ((uint16_t)buf[0] << 8) | ((uint16_t)buf[1]);
-    sensor->data.etvoc = ((uint16_t)buf[2] << 8) | ((uint16_t)buf[3]);
+    sensor->data.co2 = ((uint16_t)buf[0] << 8) | ((uint16_t)buf[1]);
+    sensor->data.voc = ((uint16_t)buf[2] << 8) | ((uint16_t)buf[3]);
     return true;
 }
 

@@ -28,9 +28,10 @@ int main()
     ili9341_init(&display, spi0, PICO_DEFAULT_SPI_SCK_PIN, PICO_DEFAULT_SPI_TX_PIN, 20, 21, 22);
     ili9341_rotate(&display, 90, true);
 
-    const uint8_t valid = ccs811_init(&sensor, i2c0, PICO_DEFAULT_I2C_SCL_PIN, PICO_DEFAULT_I2C_SDA_PIN, CCS811_DRIVE_MODE_1SEC, 0, 0);
-    ui_init(&ui, display.width, display.height, flush_cb);
+    if (!ccs811_init(&sensor, i2c0, PICO_DEFAULT_I2C_SCL_PIN, PICO_DEFAULT_I2C_SDA_PIN, CCS811_DRIVE_MODE_1SEC, 0, 0))
+        printf("failed to init ccs811\n");
 
+    ui_init(&ui, display.width, display.height, flush_cb);
     while (true)
     {
         if (ccs811_read_data(&sensor))
@@ -42,13 +43,13 @@ int main()
             snprintf(value, sizeof(value), "%.1f", temp_reading);
             lv_label_set_text(ui.temperature_value, value);
 
-            lv_bar_set_value(ui.eco2, sensor.data.eco2, LV_ANIM_OFF);
-            snprintf(value, sizeof(value), "%d", sensor.data.eco2);
-            lv_label_set_text(ui.eco2_value, value);
+            lv_bar_set_value(ui.co2, sensor.data.co2, LV_ANIM_OFF);
+            snprintf(value, sizeof(value), "%d", sensor.data.co2);
+            lv_label_set_text(ui.co2_value, value);
 
-            lv_bar_set_value(ui.etvoc, sensor.data.etvoc, LV_ANIM_OFF);
-            snprintf(value, sizeof(value), "%d", sensor.data.etvoc);
-            lv_label_set_text(ui.etvoc_value, value);
+            lv_bar_set_value(ui.voc, sensor.data.voc, LV_ANIM_OFF);
+            snprintf(value, sizeof(value), "%d", sensor.data.voc);
+            lv_label_set_text(ui.voc_value, value);
         }
         lv_timer_handler();
         lv_tick_inc(5);

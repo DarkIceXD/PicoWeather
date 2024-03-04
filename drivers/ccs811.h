@@ -10,7 +10,7 @@
 
 struct ccs811_sensor_data
 {
-    uint16_t etvoc, eco2;
+    uint16_t voc, co2;
 };
 
 struct ccs811_sensor

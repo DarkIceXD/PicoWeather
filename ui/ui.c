@@ -122,42 +122,42 @@ void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t
     lv_obj_t *deg_c = lv_label_create(temperature_column);
     lv_label_set_text(deg_c, "°C");
 
-    lv_obj_t *eco2_column = lv_obj_create(indicators);
-    lv_obj_remove_style_all(eco2_column);
-    lv_obj_set_size(eco2_column, lv_pct(33), lv_pct(100));
-    lv_obj_set_flex_flow(eco2_column, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_flex_cross_place(eco2_column, LV_FLEX_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_t *co2_column = lv_obj_create(indicators);
+    lv_obj_remove_style_all(co2_column);
+    lv_obj_set_size(co2_column, lv_pct(33), lv_pct(100));
+    lv_obj_set_flex_flow(co2_column, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_flex_cross_place(co2_column, LV_FLEX_ALIGN_CENTER, LV_PART_MAIN);
 
-    lv_obj_t *eco2_label = lv_label_create(eco2_column);
-    lv_label_set_text(eco2_label, "CO2");
+    lv_obj_t *co2_label = lv_label_create(co2_column);
+    lv_label_set_text(co2_label, "CO2");
 
-    ui->eco2 = lv_bar_create(eco2_column);
-    lv_obj_add_style(ui->eco2, &other_bar_style, LV_PART_INDICATOR);
-    lv_obj_set_flex_grow(ui->eco2, 1);
-    lv_obj_set_width(ui->eco2, lv_pct(50));
-    lv_bar_set_range(ui->eco2, 400, 1000);
+    ui->co2 = lv_bar_create(co2_column);
+    lv_obj_add_style(ui->co2, &other_bar_style, LV_PART_INDICATOR);
+    lv_obj_set_flex_grow(ui->co2, 1);
+    lv_obj_set_width(ui->co2, lv_pct(50));
+    lv_bar_set_range(ui->co2, 400, 1000);
 
-    ui->eco2_value = lv_label_create(eco2_column);
-    lv_obj_t *ppm = lv_label_create(eco2_column);
+    ui->co2_value = lv_label_create(co2_column);
+    lv_obj_t *ppm = lv_label_create(co2_column);
     lv_label_set_text(ppm, "ppm");
 
-    lv_obj_t *etvoc_column = lv_obj_create(indicators);
-    lv_obj_remove_style_all(etvoc_column);
-    lv_obj_set_size(etvoc_column, lv_pct(33), lv_pct(100));
-    lv_obj_set_flex_flow(etvoc_column, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_flex_cross_place(etvoc_column, LV_FLEX_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_t *voc_column = lv_obj_create(indicators);
+    lv_obj_remove_style_all(voc_column);
+    lv_obj_set_size(voc_column, lv_pct(33), lv_pct(100));
+    lv_obj_set_flex_flow(voc_column, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_flex_cross_place(voc_column, LV_FLEX_ALIGN_CENTER, LV_PART_MAIN);
 
-    lv_obj_t *etvoc_label = lv_label_create(etvoc_column);
-    lv_label_set_text(etvoc_label, "TVOC");
+    lv_obj_t *voc_label = lv_label_create(voc_column);
+    lv_label_set_text(voc_label, "VOC");
 
-    ui->etvoc = lv_bar_create(etvoc_column);
-    lv_obj_add_style(ui->etvoc, &other_bar_style, LV_PART_INDICATOR);
-    lv_obj_set_flex_grow(ui->etvoc, 1);
-    lv_obj_set_width(ui->etvoc, lv_pct(50));
-    lv_bar_set_range(ui->etvoc, 0, 100);
+    ui->voc = lv_bar_create(voc_column);
+    lv_obj_add_style(ui->voc, &other_bar_style, LV_PART_INDICATOR);
+    lv_obj_set_flex_grow(ui->voc, 1);
+    lv_obj_set_width(ui->voc, lv_pct(50));
+    lv_bar_set_range(ui->voc, 0, 100);
 
-    ui->etvoc_value = lv_label_create(etvoc_column);
-    lv_obj_t *ppb = lv_label_create(etvoc_column);
+    ui->voc_value = lv_label_create(voc_column);
+    lv_obj_t *ppb = lv_label_create(voc_column);
     lv_label_set_text(ppb, "ppb");
 
     const uint8_t points = 3;

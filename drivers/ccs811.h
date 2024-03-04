@@ -21,5 +21,6 @@ struct ccs811_sensor
 
 uint8_t ccs811_init(struct ccs811_sensor *sensor, i2c_inst_t *i2c_port, const uint scl, const uint sda, const uint8_t drive_mode, const uint8_t int_data_ready, const uint8_t int_threshold);
 uint8_t ccs811_read_data(struct ccs811_sensor *sensor);
+void ccs811_set_env_data(const struct ccs811_sensor *sensor, const uint8_t env_data[4]);
 
 #endif

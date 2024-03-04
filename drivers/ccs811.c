@@ -1,6 +1,6 @@
 #include "ccs811.h"
 #include "pico/stdlib.h"
-#include <math.h>
+#include <string.h>
 
 #define CCS811_STATUS 0x00          /* Status register */
 #define CCS811_MEAS_MODE 0x01       /* Measurement mode and conditions register */
@@ -55,15 +55,12 @@ static void command(i2c_inst_t *i2c_port, const uint8_t command)
     i2c_write_blocking(i2c_port, CCS811_ADDR, &command, 1, false);
 }
 
-static void command_with_byte(i2c_inst_t *i2c_port, const uint8_t command, const uint8_t data)
-{
-    i2c_write_blocking(i2c_port, CCS811_ADDR, (uint8_t[]){command, data}, 2, false);
-}
-
 static void command_with_data(i2c_inst_t *i2c_port, const uint8_t command, const uint8_t *buf, const uint8_t num)
 {
-    i2c_write_blocking(i2c_port, CCS811_ADDR, &command, 1, true);
-    i2c_write_blocking(i2c_port, CCS811_ADDR, buf, num, false);
+    uint8_t command_buffer[5];
+    command_buffer[0] = command;
+    memcpy(command_buffer + 1, buf, num);
+    i2c_write_blocking(i2c_port, CCS811_ADDR, command_buffer, 1 + num, false);
 }
 
 uint8_t ccs811_init(struct ccs811_sensor *sensor, i2c_inst_t *i2c_port, const uint scl, const uint sda, const uint8_t drive_mode, const uint8_t int_data_ready, const uint8_t int_threshold)
@@ -95,7 +92,7 @@ uint8_t ccs811_init(struct ccs811_sensor *sensor, i2c_inst_t *i2c_port, const ui
     if (!(status & CCS811_STATUS_APP_VALID))
         return 0;
 
-    command_with_byte(sensor->i2c_port, CCS811_MEAS_MODE, (drive_mode << 4) | (int_data_ready << 3) | (int_threshold << 2));
+    command_with_data(sensor->i2c_port, CCS811_MEAS_MODE, (uint8_t[]){(drive_mode << 4) | (int_data_ready << 3) | (int_threshold << 2)}, 1);
     return 1;
 }
 
@@ -112,4 +109,9 @@ uint8_t ccs811_read_data(struct ccs811_sensor *sensor)
     sensor->data.eco2 = ((uint16_t)buf[0] << 8) | ((uint16_t)buf[1]);
     sensor->data.etvoc = ((uint16_t)buf[2] << 8) | ((uint16_t)buf[3]);
     return true;
+}
+
+void ccs811_set_env_data(const struct ccs811_sensor *sensor, const uint8_t env_data[4])
+{
+    command_with_data(sensor->i2c_port, CCS811_ENV_DATA, env_data, 4);
 }

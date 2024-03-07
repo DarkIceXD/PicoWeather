@@ -11,6 +11,7 @@ typedef struct TLS_CLIENT_T_
     int error;
     const char *http_request;
     char *data;
+    size_t len;
 } TLS_CLIENT_T;
 
 static struct altcp_tls_config *tls_config = NULL;
@@ -77,18 +78,19 @@ static err_t tls_client_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, e
             if (content_start)
             {
                 const int offset = content_start + 4 - (char *)p->payload;
-                state->data = malloc(p->tot_len + 1 - offset);
+                state->len = p->tot_len - offset;
+                state->data = malloc(state->len + 1);
                 pbuf_copy_partial(p, state->data, p->tot_len, offset);
-                state->data[p->tot_len - offset] = 0;
+                state->data[state->len] = 0;
             }
         }
         else
         {
-            const int len = strlen(state->data);
-            const int tot_len = len + p->tot_len;
-            state->data = realloc(state->data, tot_len + 1);
-            pbuf_copy_partial(p, state->data + len, p->tot_len, 0);
-            state->data[tot_len] = 0;
+            const int new_len = state->len + p->tot_len;
+            state->data = realloc(state->data, new_len + 1);
+            pbuf_copy_partial(p, state->data + state->len, p->tot_len, 0);
+            state->data[new_len] = 0;
+            state->len = new_len;
         }
         altcp_recved(pcb, p->tot_len);
     }
@@ -144,7 +146,7 @@ static bool tls_client_open(const char *hostname, void *arg, const int timeout)
     return err == ERR_OK || err == ERR_INPROGRESS;
 }
 
-char *https_request(const char *server, const char *request)
+char *https_request(const char *server, const char *request, size_t *len)
 {
     tls_config = altcp_tls_create_config_client(NULL, 0);
     assert(tls_config);
@@ -172,6 +174,8 @@ char *https_request(const char *server, const char *request)
     }
     const int err = state->error;
     char *data = state->data;
+    if (len)
+        *len = state->len;
     free(state);
     altcp_tls_free_config(tls_config);
     if (err)
@@ -179,9 +183,9 @@ char *https_request(const char *server, const char *request)
     return data;
 }
 
-char *https_get_request(const char *server, const char *path)
+char *https_get_request(const char *server, const char *path, size_t *len)
 {
     char buf[512];
     sniprintf(buf, sizeof(buf), "GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n", path, server);
-    return https_request(server, buf);
+    return https_request(server, buf, len);
 }

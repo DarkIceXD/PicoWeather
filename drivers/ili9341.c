@@ -99,8 +99,7 @@
 #define ILI9341_GAM3CTRL 0xF2      /* [8.4.7] Enable 3 gamma control */
 #define ILI9341_PUMPRATIO 0xF7     /* [8.4.8] Pump ratio control */
 
-#define SCREEN_WIDTH 240
-#define SCREEN_HEIGHT 320
+const bool display_inversion = true;
 
 static void command(const struct ili9341_display *display, const uint8_t command)
 {
@@ -153,6 +152,9 @@ void ili9341_init(struct ili9341_display *display, spi_inst_t *spi_port, const u
     ili9341_rotate(display, 0, true);
     command_with_data(display, ILI9341_PIXSET, (uint8_t[]){0x55}, 1);
 
+    if (display_inversion)
+        command(display, ILI9341_DINVON);
+
     command(display, ILI9341_SLPOUT);
     sleep_ms(120);
 
@@ -195,5 +197,5 @@ void ili9341_draw_window(const struct ili9341_display *display, const uint16_t x
 
 void ili9341_draw(const struct ili9341_display *display, const uint8_t *buffer, const uint len)
 {
-    command_with_data(display, 0x2C, buffer, len);
+    command_with_data(display, ILI9341_RAMWR, buffer, len);
 }

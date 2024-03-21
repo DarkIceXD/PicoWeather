@@ -1,5 +1,5 @@
 #include "ili9341.h"
-#include "pico/stdlib.h"
+#include <pico/stdlib.h>
 
 #define ILI9341_NOP 0x00       /* [8.2.1 ] No Operation / Terminate Frame Memory Write */
 #define ILI9341_SWRESET 0x01   /* [8.2.2 ] Software Reset */
@@ -119,16 +119,12 @@ static void command_with_data(const struct ili9341_display *display, const uint8
     gpio_put(display->cs, 1);
 }
 
-void ili9341_init(struct ili9341_display *display, spi_inst_t *spi_port, const uint sck, const uint tx, const uint reset, const uint dc, const uint cs)
+void ili9341_init(struct ili9341_display *display, spi_inst_t *spi_port, const uint reset, const uint dc, const uint cs)
 {
     display->spi_port = spi_port;
     display->reset = reset;
     display->dc = dc;
     display->cs = cs;
-
-    spi_init(display->spi_port, 62500000);
-    gpio_set_function(sck, GPIO_FUNC_SPI);
-    gpio_set_function(tx, GPIO_FUNC_SPI);
 
     gpio_init(display->reset);
     gpio_set_dir(display->reset, GPIO_OUT);

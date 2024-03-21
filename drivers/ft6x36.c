@@ -1,5 +1,5 @@
 #include "ft6x36.h"
-#include "pico/stdlib.h"
+#include <pico/stdlib.h>
 #include <string.h>
 
 #define FT6X36_DEVICE_MODE 0x00
@@ -66,16 +66,10 @@ static void command_with_data(i2c_inst_t *i2c_port, const uint8_t command, const
     i2c_write_blocking(i2c_port, FT6X36_ADDR, command_buffer, 1 + num, false);
 }
 
-uint8_t ft6x36_init(struct ft6x36_touch *touch, i2c_inst_t *i2c_port, const uint scl, const uint sda, const uint8_t threshold, const bool is_rotated)
+uint8_t ft6x36_init(struct ft6x36_touch *touch, i2c_inst_t *i2c_port, const uint8_t threshold, const bool is_rotated)
 {
     touch->i2c_port = i2c_port;
     touch->is_rotated = is_rotated;
-    sleep_ms(20);
-    i2c_init(touch->i2c_port, 400000);
-    gpio_set_function(scl, GPIO_FUNC_I2C);
-    gpio_set_function(sda, GPIO_FUNC_I2C);
-    gpio_pull_up(sda);
-    gpio_pull_up(scl);
 
     if (read_byte(touch->i2c_port, FT6X36_PANEL_ID) != FT6X36_VENDID)
         return false;

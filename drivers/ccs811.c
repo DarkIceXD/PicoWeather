@@ -1,5 +1,5 @@
 #include "ccs811.h"
-#include "pico/stdlib.h"
+#include <pico/stdlib.h>
 #include <string.h>
 
 #define CCS811_STATUS 0x00          /* Status register */
@@ -63,15 +63,9 @@ static void command_with_data(i2c_inst_t *i2c_port, const uint8_t command, const
     i2c_write_blocking(i2c_port, CCS811_ADDR, command_buffer, 1 + num, false);
 }
 
-uint8_t ccs811_init(struct ccs811_sensor *sensor, i2c_inst_t *i2c_port, const uint scl, const uint sda, const uint8_t drive_mode, const uint8_t int_data_ready, const uint8_t int_threshold)
+uint8_t ccs811_init(struct ccs811_sensor *sensor, i2c_inst_t *i2c_port, const uint8_t drive_mode, const uint8_t int_data_ready, const uint8_t int_threshold)
 {
     sensor->i2c_port = i2c_port;
-    sleep_ms(20);
-    i2c_init(sensor->i2c_port, 400000);
-    gpio_set_function(scl, GPIO_FUNC_I2C);
-    gpio_set_function(sda, GPIO_FUNC_I2C);
-    gpio_pull_up(sda);
-    gpio_pull_up(scl);
 
     command_with_data(sensor->i2c_port, CCS811_SW_RESET, (uint8_t[]){0x11, 0xE5, 0x72, 0x8A}, 4);
     sleep_ms(2);

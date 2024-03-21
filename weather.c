@@ -1,14 +1,157 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include "pico/stdlib.h"
-#include "temperature_sensor/temperature_sensor.h"
+#include <hardware/rtc.h>
+#include <pico/stdlib.h>
+#include <pico/cyw43_arch.h>
+#include "storage/storage.h"
+#include "https_client/https_client.h"
+#include "jsmn/json.h"
 #include "drivers/ili9341.h"
+#include "drivers/ft6x36.h"
+#include "drivers/bme280.h"
 #include "drivers/ccs811.h"
 #include "ui/ui.h"
 
+struct settings
+{
+    char ap_name[32 + 1];
+    char password[64 + 1];
+    char key[64 + 1];
+    char query[64 + 1];
+} settings = {
+    .ap_name = "",
+    .password = "",
+    .key = "",
+    .query = "Berlin",
+};
+
+void world_time_api_handler(const char *json, const jsmntok_t *t, const size_t count, struct json_data *data)
+{
+    datetime_t *time = data->data;
+    if (is_json_key(json, t, "datetime"))
+    {
+        int year, month, day, hour, minute, second;
+        sscanf(json + (t + 1)->start, "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute, &second);
+        time->year = year;
+        time->month = month;
+        time->day = day;
+        time->hour = hour;
+        time->min = minute;
+        time->sec = second;
+    }
+    else if (is_json_key(json, t, "day_of_week"))
+    {
+        time->dotw = strtol(json + (t + 1)->start, NULL, 10);
+    }
+}
+
+struct weather_hour_data
+{
+    char time[16 + 1];
+    float temp_c;
+    float feelslike_c;
+    float wind_kph;
+    int pressure_mb;
+    int humidity;
+    int chance_of_rain;
+    int chance_of_snow;
+};
+
+struct weather_day_data
+{
+    char sunrise[8 + 1];
+    char sunset[8 + 1];
+    struct weather_hour_data hour[24];
+};
+
+struct weather_forecast
+{
+    struct weather_day_data day[3];
+};
+
+bool is_forecast_day = false;
+bool is_hour = false;
+int i = 0;
+void weather_api_handler(const char *json, const jsmntok_t *t, const size_t count, struct json_data *data)
+{
+    if (data->array_depth < 1)
+    {
+        is_forecast_day = false;
+        is_hour = false;
+    }
+    else if (data->array_depth < 2)
+    {
+        is_hour = false;
+    }
+
+    if ((t + 1)->type == JSMN_ARRAY)
+    {
+        if (is_json_key(json, t, "forecastday"))
+        {
+            is_forecast_day = true;
+            return;
+        }
+        else if (is_json_key(json, t, "hour"))
+        {
+            is_hour = true;
+            i = data->array_index;
+            return;
+        }
+    }
+
+    struct weather_forecast *forecast = data->data;
+    if (is_forecast_day)
+    {
+        if (!is_hour)
+        {
+            if (is_json_key(json, t, "sunrise"))
+            {
+                strlcpy(forecast->day[data->array_index].sunrise, json + (t + 1)->start, sizeof(forecast->day[data->array_index].sunrise));
+            }
+            else if (is_json_key(json, t, "sunset"))
+            {
+                strlcpy(forecast->day[data->array_index].sunset, json + (t + 1)->start, sizeof(forecast->day[data->array_index].sunset));
+            }
+        }
+        else
+        {
+            if (is_json_key(json, t, "time"))
+            {
+                strlcpy(forecast->day[i].hour[data->array_index].time, json + (t + 1)->start, sizeof(forecast->day[i].hour[data->array_index].time));
+            }
+            else if (is_json_key(json, t, "temp_c"))
+            {
+                forecast->day[i].hour[data->array_index].temp_c = strtof(json + (t + 1)->start, NULL);
+            }
+            else if (is_json_key(json, t, "feelslike_c"))
+            {
+                forecast->day[i].hour[data->array_index].feelslike_c = strtof(json + (t + 1)->start, NULL);
+            }
+            else if (is_json_key(json, t, "wind_kph"))
+            {
+                forecast->day[i].hour[data->array_index].wind_kph = strtof(json + (t + 1)->start, NULL);
+            }
+            else if (is_json_key(json, t, "pressure_mb"))
+            {
+                forecast->day[i].hour[data->array_index].pressure_mb = strtol(json + (t + 1)->start, NULL, 10);
+            }
+            else if (is_json_key(json, t, "humidity"))
+            {
+                forecast->day[i].hour[data->array_index].humidity = strtol(json + (t + 1)->start, NULL, 10);
+            }
+            else if (is_json_key(json, t, "chance_of_rain"))
+            {
+                forecast->day[i].hour[data->array_index].chance_of_rain = strtol(json + (t + 1)->start, NULL, 10);
+            }
+            else if (is_json_key(json, t, "chance_of_snow"))
+            {
+                forecast->day[i].hour[data->array_index].chance_of_snow = strtol(json + (t + 1)->start, NULL, 10);
+            }
+        }
+    }
+}
+
 struct ili9341_display display;
-struct ccs811_sensor sensor;
-struct ui ui;
+struct ft6x36_touch touch;
 
 static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
@@ -19,37 +162,135 @@ static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
     lv_disp_flush_ready(disp);
 }
 
+static void read_cb(lv_indev_t *indev, lv_indev_data_t *data)
+{
+    if (ft6x36_read_data(&touch))
+    {
+        data->state = LV_INDEV_STATE_PRESSED;
+        data->point.x = touch.data.touch_points[0].x;
+        data->point.y = touch.data.touch_points[0].y;
+    }
+    else
+    {
+        data->state = LV_INDEV_STATE_RELEASED;
+    }
+}
+
 int main()
 {
     stdio_init_all();
-    adc_init();
-    temperature_sensor_init();
+    datetime_t time;
+    load(&settings, sizeof(settings));
+    if (cyw43_arch_init())
+    {
+        printf("failed to init cyw43\n");
+        return 1;
+    }
 
-    ili9341_init(&display, spi0, PICO_DEFAULT_SPI_SCK_PIN, PICO_DEFAULT_SPI_TX_PIN, 20, 21, 22);
+    cyw43_arch_enable_sta_mode();
+    int retries = 2;
+    int err;
+    do
+    {
+        err = cyw43_arch_wifi_connect_timeout_ms(settings.ap_name, settings.password, CYW43_AUTH_WPA2_AES_PSK, 30000);
+    } while ((retries--) && err);
+    if (err)
+    {
+        printf("failed to connect after 2 retries\n");
+        return 1;
+    }
+
+    rtc_init();
+    char *data = https_get_request("worldtimeapi.org", "/api/ip", NULL);
+    if (data)
+    {
+        json_parse(data, world_time_api_handler, &time);
+        free(data);
+    }
+    rtc_set_datetime(&time);
+
+    spi_init(spi0, 62500000);
+    gpio_set_function(PICO_DEFAULT_SPI_SCK_PIN, GPIO_FUNC_SPI);
+    gpio_set_function(PICO_DEFAULT_SPI_TX_PIN, GPIO_FUNC_SPI);
+
+    i2c_init(i2c0, 400000);
+    gpio_set_function(21, GPIO_FUNC_I2C);
+    gpio_set_function(20, GPIO_FUNC_I2C);
+
+    ili9341_init(&display, spi0, 22, 26, 27);
     ili9341_rotate(&display, 90, true);
 
-    if (!ccs811_init(&sensor, i2c0, PICO_DEFAULT_I2C_SCL_PIN, PICO_DEFAULT_I2C_SDA_PIN, CCS811_DRIVE_MODE_1SEC, 0, 0))
+    if (!ft6x36_init(&touch, i2c0, 15, true))
+        printf("failed to init ft6x36\n");
+
+    struct bme280_sensor bme280;
+    if (!bme280_init(&bme280, i2c0))
+        printf("failed to init bme280\n");
+
+    struct ccs811_sensor ccs811;
+    if (!ccs811_init(&ccs811, i2c0, CCS811_DRIVE_MODE_1SEC, 0, 0))
         printf("failed to init ccs811\n");
 
-    ui_init(&ui, display.width, display.height, flush_cb);
+    char request[128];
+    sniprintf(request, 128, "/v1/forecast.json?key=%s&q=%s&days=3", settings.key, settings.query);
+    uint32_t next_update = 0;
+
+    struct ui ui;
+    ui_init(&ui, display.width, display.height, flush_cb, read_cb);
     while (true)
     {
-        if (ccs811_read_data(&sensor))
-        {
-            char value[20];
+        char value[20];
+        rtc_get_datetime(&time);
+        snprintf(value, sizeof(value), "%02d:%02d", time.hour, time.min);
+        lv_label_set_text(ui.time, value);
+        snprintf(value, sizeof(value), "%02d.%02d.%d", time.day, time.month, time.year);
+        lv_label_set_text(ui.date, value);
 
-            const float temp_reading = temperature_sensor_read();
-            lv_bar_set_value(ui.temperature, temp_reading, LV_ANIM_OFF);
-            snprintf(value, sizeof(value), "%.1f", temp_reading);
+        if (ccs811_read_data(&ccs811))
+        {
+            bme280_read_data(&bme280);
+            const float temp = bme280.data.temperature / 100.f;
+            lv_bar_set_value(ui.temperature, temp, LV_ANIM_OFF);
+            snprintf(value, sizeof(value), "%.1f", temp);
             lv_label_set_text(ui.temperature_value, value);
 
-            lv_bar_set_value(ui.co2, sensor.data.co2, LV_ANIM_OFF);
-            snprintf(value, sizeof(value), "%d", sensor.data.co2);
+            const float hum = bme280.data.humidity / 1024.f;
+            lv_bar_set_value(ui.humidity, hum, LV_ANIM_OFF);
+            snprintf(value, sizeof(value), "%.1f", hum);
+            lv_label_set_text(ui.humidity_value, value);
+
+            const int press = bme280.data.pressure / (256.f * 100);
+            lv_bar_set_value(ui.pressure, press, LV_ANIM_OFF);
+            snprintf(value, sizeof(value), "%d", press);
+            lv_label_set_text(ui.pressure_value, value);
+
+            lv_bar_set_value(ui.co2, ccs811.data.co2, LV_ANIM_OFF);
+            snprintf(value, sizeof(value), "%d", ccs811.data.co2);
             lv_label_set_text(ui.co2_value, value);
 
-            lv_bar_set_value(ui.voc, sensor.data.voc, LV_ANIM_OFF);
-            snprintf(value, sizeof(value), "%d", sensor.data.voc);
+            lv_bar_set_value(ui.voc, ccs811.data.voc, LV_ANIM_OFF);
+            snprintf(value, sizeof(value), "%d", ccs811.data.voc);
             lv_label_set_text(ui.voc_value, value);
+        }
+
+        if (next_update < to_ms_since_boot(get_absolute_time()))
+        {
+            data = https_get_request("api.weatherapi.com", request, NULL);
+            if (data)
+            {
+                next_update = to_ms_since_boot(make_timeout_time_ms(60 * 60 * 1000));
+                struct weather_forecast forecast;
+                json_parse(data, weather_api_handler, &forecast);
+                for (int i = 0; i < 2 /*3*/; i++)
+                {
+                    for (int j = 0; j < 24; j++)
+                    {
+                        ui.chart_series[i]->y_points[j] = forecast.day[i].hour[j].temp_c;
+                    }
+                    lv_chart_refresh(ui.chart[i]);
+                }
+                free(data);
+            }
         }
         lv_timer_handler();
         lv_tick_inc(5);

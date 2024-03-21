@@ -12,14 +12,16 @@ project(weather)
 
 pico_sdk_init()
 
-add_compile_options(-Wall -Wextra -Wpedantic)
+add_executable(weather weather.c storage/storage.c https_client/https_client.c jsmn/json.c drivers/ili9341.c drivers/ft6x36.c drivers/bme280.c drivers/ccs811.c ui/ui.c)
 
-add_executable(weather weather.c temperature_sensor/temperature_sensor.c drivers/ili9341.c drivers/ccs811.c ui/ui.c)
+target_compile_options(weather PRIVATE -Wall -Wextra -Wpedantic)
 
 pico_enable_stdio_uart(weather 0)
 pico_enable_stdio_usb(weather 1)
 
-target_link_libraries(weather pico_stdlib hardware_rtc hardware_adc hardware_spi hardware_i2c lvgl::lvgl)
+target_include_directories(weather PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+
+target_link_libraries(weather pico_stdlib pico_cyw43_arch_lwip_poll pico_lwip_mbedtls pico_mbedtls hardware_rtc hardware_adc hardware_spi hardware_i2c lvgl::lvgl)
 
 pico_add_extra_outputs(weather)
 

@@ -1,6 +1,29 @@
 #include "ui.h"
 #include <stdio.h>
 
+static lv_color_t buf1[(240 * 320) / 10];
+
+static void create_indicator(lv_obj_t *parent, const char *label, const char *unit, const int32_t min, const int32_t max, lv_obj_t **bar, lv_obj_t **value)
+{
+    lv_obj_t *column = lv_obj_create(parent);
+    lv_obj_remove_style_all(column);
+    lv_obj_set_size(column, lv_pct(16), lv_pct(100));
+    lv_obj_set_flex_flow(column, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_flex_cross_place(column, LV_FLEX_ALIGN_CENTER, LV_PART_MAIN);
+
+    lv_obj_t *label_obj = lv_label_create(column);
+    lv_label_set_text_static(label_obj, label);
+
+    *bar = lv_bar_create(column);
+    lv_obj_set_flex_grow(*bar, 1);
+    lv_obj_set_width(*bar, lv_pct(50));
+    lv_bar_set_range(*bar, min, max);
+
+    *value = lv_label_create(column);
+    lv_obj_t *unit_obj = lv_label_create(column);
+    lv_label_set_text_static(unit_obj, unit);
+}
+
 static void chart_event_cb(lv_event_t *e)
 {
     const lv_event_code_t code = lv_event_get_code(e);
@@ -50,30 +73,60 @@ static void chart_event_cb(lv_event_t *e)
     }
 }
 
-static lv_color_t buf1[(240 * 320) / 10];
+static void create_chart(lv_obj_t *parent, const char *label, const uint32_t points, lv_obj_t **chart, lv_chart_series_t **series)
+{
+    lv_obj_t *wrapper = lv_obj_create(parent);
+    lv_obj_remove_style_all(wrapper);
+    lv_obj_set_size(wrapper, lv_pct(300), lv_pct(50));
+    lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_COLUMN);
 
-void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t vertical_resolution, const lv_display_flush_cb_t flush_cb)
+    lv_obj_t *label_text = lv_label_create(wrapper);
+    lv_label_set_text(label_text, label);
+
+    *chart = lv_chart_create(wrapper);
+    lv_obj_set_flex_grow(*chart, 1);
+    lv_obj_set_width(*chart, lv_pct(100));
+    lv_chart_set_point_count(*chart, points);
+    lv_chart_set_div_line_count(*chart, 0, 0);
+    lv_obj_add_event_cb(*chart, chart_event_cb, LV_EVENT_ALL, "°C");
+
+    lv_obj_t *scale = lv_scale_create(wrapper);
+    lv_scale_set_mode(scale, LV_SCALE_MODE_HORIZONTAL_BOTTOM);
+    lv_obj_set_size(scale, lv_pct(100), 25);
+    lv_scale_set_total_tick_count(scale, points);
+    lv_scale_set_major_tick_every(scale, 1);
+    lv_scale_set_range(scale, 0, points);
+    lv_obj_set_style_pad_hor(scale, lv_chart_get_first_point_center_offset(*chart), 0);
+
+    *series = lv_chart_add_series(*chart, lv_palette_main(LV_PALETTE_RED), LV_CHART_AXIS_PRIMARY_Y);
+}
+
+void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t vertical_resolution, const lv_display_flush_cb_t flush_cb, const lv_indev_read_cb_t read_cb)
 {
     lv_init();
     lv_display_t *display = lv_display_create(horizontal_resolution, vertical_resolution);
     lv_display_set_buffers(display, buf1, NULL, sizeof(buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(display, flush_cb);
 
+    lv_indev_t *indev = lv_indev_create();
+    lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(indev, read_cb);
+
     lv_obj_t *row = lv_obj_create(lv_screen_active());
     lv_obj_remove_style_all(row);
     lv_obj_set_size(row, lv_pct(100), lv_pct(100));
-    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
 
     lv_obj_t *col1 = lv_obj_create(row);
     lv_obj_set_style_pad_row(col1, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_column(col1, 0, LV_PART_MAIN);
-    lv_obj_set_size(col1, lv_pct(50), lv_pct(100));
+    lv_obj_set_size(col1, lv_pct(100), lv_pct(100));
     lv_obj_set_flex_flow(col1, LV_FLEX_FLOW_COLUMN);
 
     lv_obj_t *col2 = lv_obj_create(row);
     lv_obj_set_style_pad_row(col2, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_column(col2, 0, LV_PART_MAIN);
-    lv_obj_set_size(col2, lv_pct(50), lv_pct(100));
+    lv_obj_set_size(col2, lv_pct(100), lv_pct(150));
     lv_obj_set_flex_flow(col2, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_flex_main_place(col2, LV_FLEX_ALIGN_SPACE_EVENLY, LV_PART_MAIN);
 
@@ -84,18 +137,6 @@ void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t
     lv_obj_t *location = lv_label_create(col1);
     lv_label_set_text(location, LV_SYMBOL_HOME "Berlin");
 
-    static lv_style_t temperature_style;
-    lv_style_init(&temperature_style);
-    lv_style_set_bg_color(&temperature_style, lv_palette_main(LV_PALETTE_RED));
-    lv_style_set_bg_grad_color(&temperature_style, lv_palette_main(LV_PALETTE_BLUE));
-    lv_style_set_bg_grad_dir(&temperature_style, LV_GRAD_DIR_VER);
-
-    static lv_style_t other_bar_style;
-    lv_style_init(&other_bar_style);
-    lv_style_set_bg_color(&other_bar_style, lv_palette_main(LV_PALETTE_RED));
-    lv_style_set_bg_grad_color(&other_bar_style, lv_palette_main(LV_PALETTE_GREEN));
-    lv_style_set_bg_grad_dir(&other_bar_style, LV_GRAD_DIR_VER);
-
     lv_obj_t *indicators = lv_obj_create(col1);
     lv_obj_remove_style_all(indicators);
     lv_obj_set_flex_grow(indicators, 1);
@@ -103,109 +144,13 @@ void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t
     lv_obj_set_flex_flow(indicators, LV_FLEX_FLOW_ROW);
     lv_obj_set_style_flex_main_place(indicators, LV_FLEX_ALIGN_SPACE_EVENLY, LV_PART_MAIN);
 
-    lv_obj_t *temperature_column = lv_obj_create(indicators);
-    lv_obj_remove_style_all(temperature_column);
-    lv_obj_set_size(temperature_column, lv_pct(33), lv_pct(100));
-    lv_obj_set_flex_flow(temperature_column, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_flex_cross_place(temperature_column, LV_FLEX_ALIGN_CENTER, LV_PART_MAIN);
+    create_indicator(indicators, "Temp", "°C", 0, 40, &ui->temperature, &ui->temperature_value);
+    create_indicator(indicators, "Hum", "%RH", 0, 100, &ui->humidity, &ui->humidity_value);
+    create_indicator(indicators, "Pres", "hPa", 950, 1050, &ui->pressure, &ui->pressure_value);
+    create_indicator(indicators, "CO2", "ppm", 400, 1000, &ui->co2, &ui->co2_value);
+    create_indicator(indicators, "VOC", "ppb", 0, 100, &ui->voc, &ui->voc_value);
 
-    lv_obj_t *temperature_label = lv_label_create(temperature_column);
-    lv_label_set_text(temperature_label, "Temp");
-
-    ui->temperature = lv_bar_create(temperature_column);
-    lv_obj_add_style(ui->temperature, &temperature_style, LV_PART_INDICATOR);
-    lv_obj_set_flex_grow(ui->temperature, 1);
-    lv_obj_set_width(ui->temperature, lv_pct(50));
-    lv_bar_set_range(ui->temperature, 0, 40);
-
-    ui->temperature_value = lv_label_create(temperature_column);
-    lv_obj_t *deg_c = lv_label_create(temperature_column);
-    lv_label_set_text(deg_c, "°C");
-
-    lv_obj_t *co2_column = lv_obj_create(indicators);
-    lv_obj_remove_style_all(co2_column);
-    lv_obj_set_size(co2_column, lv_pct(33), lv_pct(100));
-    lv_obj_set_flex_flow(co2_column, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_flex_cross_place(co2_column, LV_FLEX_ALIGN_CENTER, LV_PART_MAIN);
-
-    lv_obj_t *co2_label = lv_label_create(co2_column);
-    lv_label_set_text(co2_label, "CO2");
-
-    ui->co2 = lv_bar_create(co2_column);
-    lv_obj_add_style(ui->co2, &other_bar_style, LV_PART_INDICATOR);
-    lv_obj_set_flex_grow(ui->co2, 1);
-    lv_obj_set_width(ui->co2, lv_pct(50));
-    lv_bar_set_range(ui->co2, 400, 1000);
-
-    ui->co2_value = lv_label_create(co2_column);
-    lv_obj_t *ppm = lv_label_create(co2_column);
-    lv_label_set_text(ppm, "ppm");
-
-    lv_obj_t *voc_column = lv_obj_create(indicators);
-    lv_obj_remove_style_all(voc_column);
-    lv_obj_set_size(voc_column, lv_pct(33), lv_pct(100));
-    lv_obj_set_flex_flow(voc_column, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_flex_cross_place(voc_column, LV_FLEX_ALIGN_CENTER, LV_PART_MAIN);
-
-    lv_obj_t *voc_label = lv_label_create(voc_column);
-    lv_label_set_text(voc_label, "VOC");
-
-    ui->voc = lv_bar_create(voc_column);
-    lv_obj_add_style(ui->voc, &other_bar_style, LV_PART_INDICATOR);
-    lv_obj_set_flex_grow(ui->voc, 1);
-    lv_obj_set_width(ui->voc, lv_pct(50));
-    lv_bar_set_range(ui->voc, 0, 100);
-
-    ui->voc_value = lv_label_create(voc_column);
-    lv_obj_t *ppb = lv_label_create(voc_column);
-    lv_label_set_text(ppb, "ppb");
-
-    const uint8_t points = 3;
-
-    lv_obj_t *chart1_wrapper = lv_obj_create(col2);
-    lv_obj_remove_style_all(chart1_wrapper);
-    lv_obj_set_size(chart1_wrapper, lv_pct(100), lv_pct(50));
-    lv_obj_set_flex_flow(chart1_wrapper, LV_FLEX_FLOW_COLUMN);
-
-    lv_obj_t *today = lv_label_create(chart1_wrapper);
-    lv_label_set_text(today, "Today");
-
-    lv_obj_t *today_chart = lv_chart_create(chart1_wrapper);
-    lv_obj_set_flex_grow(today_chart, 1);
-    lv_obj_set_width(today_chart, lv_pct(100));
-    lv_chart_set_point_count(today_chart, points);
-    lv_chart_set_div_line_count(today_chart, 0, 0);
-    lv_obj_add_event_cb(today_chart, chart_event_cb, LV_EVENT_ALL, "°C");
-
-    lv_obj_t *scale_bottom = lv_scale_create(chart1_wrapper);
-    lv_scale_set_mode(scale_bottom, LV_SCALE_MODE_HORIZONTAL_BOTTOM);
-    lv_obj_set_size(scale_bottom, lv_pct(100), 25);
-    lv_scale_set_total_tick_count(scale_bottom, points);
-    lv_scale_set_major_tick_every(scale_bottom, 1);
-    lv_obj_set_style_pad_hor(scale_bottom, lv_chart_get_first_point_center_offset(today_chart), 0);
-
-    static const char *month[] = {"Jan", "Febr", "March", "Apr", "May", "Jun", "July", "Aug", "Sept", "Oct", "Nov", "Dec", NULL};
-    lv_scale_set_text_src(scale_bottom, month);
-
-    lv_chart_series_t *ser1 = lv_chart_add_series(today_chart, lv_palette_main(LV_PALETTE_RED), LV_CHART_AXIS_PRIMARY_Y);
-    for (uint32_t i = 0; i < points; i++)
-    {
-        lv_chart_set_next_value(today_chart, ser1, lv_rand(60, 90));
-    }
-
-    lv_obj_t *forecast = lv_label_create(col2);
-    lv_label_set_text(forecast, "Forecast");
-
-    lv_obj_t *forecast_chart = lv_chart_create(col2);
-    lv_obj_set_size(forecast_chart, lv_pct(100), lv_pct(40));
-    lv_chart_set_point_count(forecast_chart, points);
-    lv_chart_set_div_line_count(forecast_chart, 0, 0);
-    lv_obj_add_event_cb(forecast_chart, chart_event_cb, LV_EVENT_ALL, "°C");
-    lv_chart_series_t *ser3 = lv_chart_add_series(forecast_chart, lv_palette_main(LV_PALETTE_RED), LV_CHART_AXIS_PRIMARY_Y);
-    lv_chart_series_t *ser4 = lv_chart_add_series(forecast_chart, lv_palette_main(LV_PALETTE_BLUE), LV_CHART_AXIS_SECONDARY_Y);
-    for (uint32_t i = 0; i < points; i++)
-    {
-        lv_chart_set_next_value(forecast_chart, ser3, lv_rand(60, 90));
-        lv_chart_set_next_value(forecast_chart, ser4, lv_rand(10, 40));
-    }
+    create_chart(col2, "Today", 24, &ui->chart[0], &ui->chart_series[0]);
+    create_chart(col2, "Tomorrow", 24, &ui->chart[1], &ui->chart_series[1]);
+    // create_chart(col2, "", 24, &ui->chart[2], &ui->chart_series[2]);
 }

@@ -74,7 +74,7 @@ static err_t tls_client_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, e
     {
         if (!state->data)
         {
-            char *content_start = strstr(p->payload, "\r\n\r\n");
+            char *content_start = strnstr(p->payload, "\r\n\r\n", p->tot_len);
             if (content_start)
             {
                 const int offset = content_start + 4 - (char *)p->payload;
@@ -117,7 +117,7 @@ static void tls_client_dns_found(const char *hostname, const ip_addr_t *ipaddr, 
     }
 }
 
-static bool tls_client_open(const char *hostname, void *arg, const int timeout)
+static bool tls_client_open(const char *hostname, void *arg)
 {
     TLS_CLIENT_T *state = (TLS_CLIENT_T *)arg;
     state->pcb = altcp_tls_new(tls_config, IPADDR_TYPE_ANY);
@@ -125,7 +125,7 @@ static bool tls_client_open(const char *hostname, void *arg, const int timeout)
         return false;
 
     altcp_arg(state->pcb, state);
-    altcp_poll(state->pcb, tls_client_poll, timeout * 2);
+    altcp_poll(state->pcb, tls_client_poll, 5);
     altcp_recv(state->pcb, tls_client_recv);
     altcp_err(state->pcb, tls_client_err);
 
@@ -140,7 +140,7 @@ static bool tls_client_open(const char *hostname, void *arg, const int timeout)
     }
     else if (err != ERR_INPROGRESS)
     {
-        tls_client_close(state->pcb);
+        tls_client_close(state);
     }
     cyw43_arch_lwip_end();
     return err == ERR_OK || err == ERR_INPROGRESS;
@@ -157,7 +157,7 @@ char *https_request(const char *server, const char *request, size_t *len)
 
     state->http_request = request;
     state->data = 0;
-    if (!tls_client_open(server, state, 15))
+    if (!tls_client_open(server, state))
         return false;
 
     while (!state->complete)
@@ -179,7 +179,11 @@ char *https_request(const char *server, const char *request, size_t *len)
     free(state);
     altcp_tls_free_config(tls_config);
     if (err)
+    {
+        if (data)
+            free(data);
         return 0;
+    }
     return data;
 }
 

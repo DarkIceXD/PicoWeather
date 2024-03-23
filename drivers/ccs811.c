@@ -96,7 +96,7 @@ bool ccs811_read_data(struct ccs811_sensor *sensor)
     return true;
 }
 
-void ccs811_set_env_data(const struct ccs811_sensor *sensor, const uint8_t env_data[4])
+void ccs811_set_env_data(const struct ccs811_sensor *sensor, const uint16_t humidity, const uint16_t temperature)
 {
-    // command(sensor->i2c_port, CCS811_ENV_DATA, env_data, 4);
+    command(sensor->i2c_port, (uint8_t[]){CCS811_ENV_DATA, humidity >> 8, humidity & 0xff, temperature >> 8, temperature & 0xff}, 5);
 }

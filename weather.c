@@ -262,6 +262,9 @@ int main()
             lv_bar_set_value(ui.pressure, press, LV_ANIM_OFF);
             snprintf(value, sizeof(value), "%d", press);
             lv_label_set_text(ui.pressure_value, value);
+            const uint16_t ccs811_humidity = bme280.data.humidity >> 1;
+            const uint16_t ccs811_temp = bme280.data.temperature > -25 * 100 ? ((uint32_t)(bme280.data.temperature + 25 * 100) << 9) / 100 : 0;
+            ccs811_set_env_data(&ccs811, ccs811_humidity, ccs811_temp);
         }
 
         if (ccs811_read_data(&ccs811))

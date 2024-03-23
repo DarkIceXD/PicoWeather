@@ -1,6 +1,5 @@
 #include "ft6x36.h"
 #include <pico/stdlib.h>
-#include <string.h>
 
 #define FT6X36_DEVICE_MODE 0x00
 #define FT6X36_GESTURE_ID 0x01
@@ -58,15 +57,12 @@ static uint8_t read_byte(i2c_inst_t *i2c_port, const uint8_t command)
     return r;
 }
 
-static void command_with_data(i2c_inst_t *i2c_port, const uint8_t command, const uint8_t *buf, const uint8_t num)
+static void command(i2c_inst_t *i2c_port, const uint8_t buf[], const uint8_t num)
 {
-    uint8_t command_buffer[5];
-    command_buffer[0] = command;
-    memcpy(command_buffer + 1, buf, num);
-    i2c_write_blocking(i2c_port, FT6X36_ADDR, command_buffer, 1 + num, false);
+    i2c_write_blocking(i2c_port, FT6X36_ADDR, buf, num, false);
 }
 
-uint8_t ft6x36_init(struct ft6x36_touch *touch, i2c_inst_t *i2c_port, const uint8_t threshold, const bool is_rotated)
+bool ft6x36_init(struct ft6x36_touch *touch, i2c_inst_t *i2c_port, const uint8_t threshold, const bool is_rotated)
 {
     touch->i2c_port = i2c_port;
     touch->is_rotated = is_rotated;
@@ -78,9 +74,9 @@ uint8_t ft6x36_init(struct ft6x36_touch *touch, i2c_inst_t *i2c_port, const uint
     if (chip_id != FT6206_CHIPID && chip_id != FT6236_CHIPID && chip_id != FT6336_CHIPID)
         return false;
 
-    command_with_data(touch->i2c_port, FT6X36_DEVICE_MODE, (uint8_t[]){0x00}, 1);
-    command_with_data(touch->i2c_port, FT6X36_THRESHHOLD, (uint8_t[]){threshold}, 1);
-    command_with_data(touch->i2c_port, FT6X36_TOUCHRATE_ACTIVE, (uint8_t[]){0x0E}, 1);
+    command(touch->i2c_port, (uint8_t[]){FT6X36_DEVICE_MODE, 0x00}, 2);
+    command(touch->i2c_port, (uint8_t[]){FT6X36_THRESHHOLD, threshold}, 2);
+    command(touch->i2c_port, (uint8_t[]){FT6X36_TOUCHRATE_ACTIVE, 0x0E}, 2);
     return true;
 }
 

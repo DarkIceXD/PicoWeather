@@ -1,6 +1,5 @@
 #include "bme280.h"
 #include <pico/stdlib.h>
-#include <string.h>
 
 #define BME280_REG_CHIP_ID 0xD0
 #define BME280_REG_RESET 0xE0
@@ -12,6 +11,10 @@
 #define BME280_REG_CTRL_MEAS 0xF4
 #define BME280_REG_CONFIG 0xF5
 #define BME280_REG_DATA 0xF7
+
+#define BME280_MEAS_OFFSET 1250
+#define BME280_MEAS_DUR 2300
+#define BME280_PRES_HUM_MEAS_OFFSET 575
 
 #define BME280_ADDR 0x76
 
@@ -33,7 +36,7 @@ static uint8_t read_byte(i2c_inst_t *i2c_port, const uint8_t command)
     return r;
 }
 
-static void command_with_data(i2c_inst_t *i2c_port, const uint8_t buf[], const uint8_t num)
+static void command(i2c_inst_t *i2c_port, const uint8_t buf[], const uint8_t num)
 {
     i2c_write_blocking(i2c_port, BME280_ADDR, buf, num, false);
 }
@@ -64,13 +67,13 @@ static void parse_humidity_calib_data(struct bme280_calib_data *calib_data, cons
     calib_data->dig_h6 = (int8_t)reg_data[6];
 }
 
-uint8_t bme280_init(struct bme280_sensor *sensor, i2c_inst_t *i2c_port)
+bool bme280_init(struct bme280_sensor *sensor, i2c_inst_t *i2c_port)
 {
     sensor->i2c_port = i2c_port;
     if (read_byte(sensor->i2c_port, BME280_REG_CHIP_ID) != 0x60)
         return false;
 
-    command_with_data(sensor->i2c_port, (uint8_t[]){BME280_REG_RESET, 0xB6}, 2);
+    command(sensor->i2c_port, (uint8_t[]){BME280_REG_RESET, 0xB6}, 2);
     uint8_t status;
     uint8_t try_run = 5;
     do
@@ -94,12 +97,38 @@ uint8_t bme280_init(struct bme280_sensor *sensor, i2c_inst_t *i2c_port)
     return true;
 }
 
-void bme280_set_sampling(const struct bme280_sensor *sensor, const uint8_t sensor_mode, const uint8_t temp_sampling, const uint8_t press_sampling, const uint8_t hum_sampling, const uint8_t filter, const uint8_t standby_duration)
+static uint8_t map_sampling_option(const uint8_t oversampling)
 {
-    command_with_data(sensor->i2c_port, (uint8_t[]){BME280_REG_PWR_CTRL, BME280_POWERMODE_SLEEP}, 2);
-    command_with_data(sensor->i2c_port, (uint8_t[]){BME280_REG_CTRL_HUM, hum_sampling}, 2);
-    command_with_data(sensor->i2c_port, (uint8_t[]){BME280_REG_CONFIG, (standby_duration << 5) | (filter << 2)}, 2);
-    command_with_data(sensor->i2c_port, (uint8_t[]){BME280_REG_CTRL_MEAS, (temp_sampling << 5) | (press_sampling << 2) | sensor_mode}, 2);
+    switch (oversampling)
+    {
+    case BME280_NO_OVERSAMPLING:
+        return 0;
+    case BME280_OVERSAMPLING_1X:
+        return 1;
+    case BME280_OVERSAMPLING_2X:
+        return 2;
+    case BME280_OVERSAMPLING_4X:
+        return 4;
+    case BME280_OVERSAMPLING_8X:
+        return 8;
+    default:
+        return 16;
+    }
+}
+
+static uint32_t calculate_measure_delay(const uint8_t temp_sampling, const uint8_t press_sampling, const uint8_t hum_sampling)
+{
+    return BME280_MEAS_OFFSET + BME280_MEAS_DUR * map_sampling_option(temp_sampling) + BME280_MEAS_DUR * map_sampling_option(press_sampling) + BME280_PRES_HUM_MEAS_OFFSET + BME280_MEAS_DUR * map_sampling_option(hum_sampling) + BME280_PRES_HUM_MEAS_OFFSET;
+}
+
+void bme280_set_sampling(struct bme280_sensor *sensor, const uint8_t sensor_mode, const uint8_t temp_sampling, const uint8_t press_sampling, const uint8_t hum_sampling, const uint8_t filter, const uint8_t standby_duration)
+{
+    command(sensor->i2c_port, (uint8_t[]){BME280_REG_PWR_CTRL, BME280_POWERMODE_SLEEP}, 2);
+    command(sensor->i2c_port, (uint8_t[]){BME280_REG_CTRL_HUM, hum_sampling}, 2);
+    command(sensor->i2c_port, (uint8_t[]){BME280_REG_CONFIG, (standby_duration << 5) | (filter << 2)}, 2);
+    command(sensor->i2c_port, (uint8_t[]){BME280_REG_CTRL_MEAS, (temp_sampling << 5) | (press_sampling << 2) | sensor_mode}, 2);
+    sensor->measurement_delay = calculate_measure_delay(temp_sampling, press_sampling, hum_sampling);
+    sensor->next_measurement = 0;
 }
 
 static int32_t compensate_temperature(const uint32_t uncompensated_data, struct bme280_calib_data *calib_data)
@@ -146,8 +175,13 @@ static uint32_t compensate_humidity(const uint32_t uncompensated_data, const str
     return var1 >> 12;
 }
 
-void bme280_read_data(struct bme280_sensor *sensor)
+bool bme280_read_data(struct bme280_sensor *sensor)
 {
+    if (sensor->next_measurement > to_ms_since_boot(get_absolute_time()))
+        return false;
+
+    sensor->next_measurement = to_ms_since_boot(make_timeout_time_ms(sensor->measurement_delay));
+
     uint8_t reg_data[BME280_LEN_P_T_H_DATA];
     read(sensor->i2c_port, BME280_REG_DATA, reg_data, BME280_LEN_P_T_H_DATA);
 
@@ -157,4 +191,5 @@ void bme280_read_data(struct bme280_sensor *sensor)
     sensor->data.pressure = compensate_pressure(pressure, &sensor->calib_data);
     const uint32_t humidity = ((uint32_t)reg_data[6] << 8) | ((uint32_t)reg_data[7]);
     sensor->data.humidity = compensate_humidity(humidity, &sensor->calib_data);
+    return true;
 }

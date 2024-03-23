@@ -246,9 +246,8 @@ int main()
         snprintf(value, sizeof(value), "%02d.%02d.%d", time.day, time.month, time.year);
         lv_label_set_text(ui.date, value);
 
-        if (ccs811_read_data(&ccs811))
+        if (bme280_read_data(&bme280))
         {
-            bme280_read_data(&bme280);
             const float temp = bme280.data.temperature / 100.f;
             lv_bar_set_value(ui.temperature, temp, LV_ANIM_OFF);
             snprintf(value, sizeof(value), "%.1f", temp);
@@ -263,7 +262,10 @@ int main()
             lv_bar_set_value(ui.pressure, press, LV_ANIM_OFF);
             snprintf(value, sizeof(value), "%d", press);
             lv_label_set_text(ui.pressure_value, value);
+        }
 
+        if (ccs811_read_data(&ccs811))
+        {
             lv_bar_set_value(ui.co2, ccs811.data.co2, LV_ANIM_OFF);
             snprintf(value, sizeof(value), "%d", ccs811.data.co2);
             lv_label_set_text(ui.co2_value, value);

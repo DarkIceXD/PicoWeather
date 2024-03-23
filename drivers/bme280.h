@@ -65,12 +65,14 @@ struct bme280_sensor_data
 struct bme280_sensor
 {
     i2c_inst_t *i2c_port;
+    uint32_t measurement_delay;
+    uint32_t next_measurement;
     struct bme280_calib_data calib_data;
     struct bme280_sensor_data data;
 };
 
-uint8_t bme280_init(struct bme280_sensor *sensor, i2c_inst_t *i2c_port);
-void bme280_set_sampling(const struct bme280_sensor *sensor, const uint8_t sensor_mode, const uint8_t temp_sampling, const uint8_t press_sampling, const uint8_t hum_sampling, const uint8_t filter, const uint8_t standby_duration);
-void bme280_read_data(struct bme280_sensor *sensor);
+bool bme280_init(struct bme280_sensor *sensor, i2c_inst_t *i2c_port);
+void bme280_set_sampling(struct bme280_sensor *sensor, const uint8_t sensor_mode, const uint8_t temp_sampling, const uint8_t press_sampling, const uint8_t hum_sampling, const uint8_t filter, const uint8_t standby_duration);
+bool bme280_read_data(struct bme280_sensor *sensor);
 
 #endif

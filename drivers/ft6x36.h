@@ -21,7 +21,7 @@ struct ft6x36_touch
     struct ft6x36_touch_data data;
 };
 
-uint8_t ft6x36_init(struct ft6x36_touch *touch, i2c_inst_t *i2c_port, const uint8_t threshold, const bool is_rotated);
+bool ft6x36_init(struct ft6x36_touch *touch, i2c_inst_t *i2c_port, const uint8_t threshold, const bool is_rotated);
 uint8_t ft6x36_read_data(struct ft6x36_touch *touch);
 
 #endif

@@ -36,3 +36,4 @@ jobs:
         with:
           name: weather.uf2
           path: build/weather.uf2
+          compression-level: 9

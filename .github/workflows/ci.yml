@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "Check out code"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: "Refresh package repositories"
         run: |
@@ -32,7 +32,7 @@ jobs:
           make -C build
 
       - name: "Upload binary"
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: weather.uf2
           path: build/weather.uf2

@@ -65,7 +65,7 @@ struct bme280_sensor_data
 struct bme280_sensor
 {
     i2c_inst_t *i2c_port;
-    uint32_t measurement_delay;
+    uint32_t cycle_delay;
     uint32_t next_measurement;
     struct bme280_calib_data calib_data;
     struct bme280_sensor_data data;

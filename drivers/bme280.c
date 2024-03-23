@@ -97,6 +97,29 @@ bool bme280_init(struct bme280_sensor *sensor, i2c_inst_t *i2c_port)
     return true;
 }
 
+static uint32_t standby_time_to_ms(const uint8_t standby_duration)
+{
+    switch (standby_duration)
+    {
+    case BME280_STANDBY_TIME_62_5_MS:
+        return 63;
+    case BME280_STANDBY_TIME_125_MS:
+        return 125;
+    case BME280_STANDBY_TIME_250_MS:
+        return 250;
+    case BME280_STANDBY_TIME_500_MS:
+        return 500;
+    case BME280_STANDBY_TIME_1000_MS:
+        return 1000;
+    case BME280_STANDBY_TIME_10_MS:
+        return 10;
+    case BME280_STANDBY_TIME_20_MS:
+        return 20;
+    default:
+        return 1;
+    }
+}
+
 static uint8_t map_sampling_option(const uint8_t oversampling)
 {
     switch (oversampling)
@@ -127,7 +150,7 @@ void bme280_set_sampling(struct bme280_sensor *sensor, const uint8_t sensor_mode
     command(sensor->i2c_port, (uint8_t[]){BME280_REG_CTRL_HUM, hum_sampling}, 2);
     command(sensor->i2c_port, (uint8_t[]){BME280_REG_CONFIG, (standby_duration << 5) | (filter << 2)}, 2);
     command(sensor->i2c_port, (uint8_t[]){BME280_REG_CTRL_MEAS, (temp_sampling << 5) | (press_sampling << 2) | sensor_mode}, 2);
-    sensor->measurement_delay = calculate_measure_delay(temp_sampling, press_sampling, hum_sampling);
+    sensor->cycle_delay = standby_time_to_ms(standby_duration) + calculate_measure_delay(temp_sampling, press_sampling, hum_sampling);
     sensor->next_measurement = 0;
 }
 
@@ -180,7 +203,7 @@ bool bme280_read_data(struct bme280_sensor *sensor)
     if (sensor->next_measurement > to_ms_since_boot(get_absolute_time()))
         return false;
 
-    sensor->next_measurement = to_ms_since_boot(make_timeout_time_ms(sensor->measurement_delay));
+    sensor->next_measurement = to_ms_since_boot(make_timeout_time_ms(sensor->cycle_delay));
 
     uint8_t reg_data[BME280_LEN_P_T_H_DATA];
     read(sensor->i2c_port, BME280_REG_DATA, reg_data, BME280_LEN_P_T_H_DATA);

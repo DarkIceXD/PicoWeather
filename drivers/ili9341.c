@@ -157,7 +157,7 @@ void ili9341_init(struct ili9341_display *display, spi_inst_t *spi_port, const u
     command(display, ILI9341_DISPON);
 }
 
-void ili9341_rotate(struct ili9341_display *display, int degrees, bool use_bgr)
+void ili9341_rotate(struct ili9341_display *display, const int degrees, const bool use_bgr)
 {
     const uint8_t color_order = use_bgr ? MADCTL_BGR : MADCTL_RGB;
     switch (degrees)

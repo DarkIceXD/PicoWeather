@@ -12,7 +12,7 @@ project(weather)
 
 pico_sdk_init()
 
-add_executable(weather weather.c storage/storage.c https_client/https_client.c jsmn/json.c drivers/ili9341.c drivers/ft6x36.c drivers/bme280.c drivers/ccs811.c ui/ui.c)
+add_executable(weather weather.c storage/storage.c https_client/https_client.c jsmn/json.c min_max/min_max.c drivers/ili9341.c drivers/ft6x36.c drivers/bme280.c drivers/ccs811.c ui/ui.c)
 
 target_compile_options(weather PRIVATE -Wall -Wextra -Wpedantic)
 

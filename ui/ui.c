@@ -35,7 +35,6 @@ static void chart_event_cb(lv_event_t *e)
     }
     else if (code == LV_EVENT_DRAW_POST_END)
     {
-        const char *unit = lv_event_get_user_data(e);
         lv_chart_series_t *ser = lv_chart_get_series_next(chart, NULL);
         while (ser)
         {
@@ -51,7 +50,7 @@ static void chart_event_cb(lv_event_t *e)
                 label_dsc.font = LV_FONT_DEFAULT;
 
                 char buf[16];
-                snprintf(buf, sizeof(buf), "%ld%s", value, unit);
+                snprintf(buf, sizeof(buf), "%ld", value);
 
                 lv_point_t txt_size;
                 lv_text_get_size(&txt_size, buf, label_dsc.font, label_dsc.letter_space, label_dsc.line_space, LV_COORD_MAX, label_dsc.flag);
@@ -73,22 +72,20 @@ static void chart_event_cb(lv_event_t *e)
     }
 }
 
-static void create_chart(lv_obj_t *parent, const char *label, const uint32_t points, lv_obj_t **chart, lv_chart_series_t **series)
+static void create_chart(lv_obj_t *parent, const uint32_t points, const uint32_t series_count, const char **series_labels, lv_obj_t **chart, lv_chart_series_t **series)
 {
     lv_obj_t *wrapper = lv_obj_create(parent);
     lv_obj_remove_style_all(wrapper);
-    lv_obj_set_size(wrapper, lv_pct(300), lv_pct(50));
+    lv_obj_set_flex_grow(wrapper, 1);
+    lv_obj_set_width(wrapper, lv_pct(200));
     lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_COLUMN);
-
-    lv_obj_t *label_text = lv_label_create(wrapper);
-    lv_label_set_text(label_text, label);
 
     *chart = lv_chart_create(wrapper);
     lv_obj_set_flex_grow(*chart, 1);
     lv_obj_set_width(*chart, lv_pct(100));
     lv_chart_set_point_count(*chart, points);
     lv_chart_set_div_line_count(*chart, 0, 0);
-    lv_obj_add_event_cb(*chart, chart_event_cb, LV_EVENT_ALL, "°C");
+    lv_obj_add_event_cb(*chart, chart_event_cb, LV_EVENT_ALL, NULL);
 
     lv_obj_t *scale = lv_scale_create(wrapper);
     lv_scale_set_mode(scale, LV_SCALE_MODE_HORIZONTAL_BOTTOM);
@@ -98,7 +95,25 @@ static void create_chart(lv_obj_t *parent, const char *label, const uint32_t poi
     lv_scale_set_range(scale, 0, points);
     lv_obj_set_style_pad_hor(scale, lv_chart_get_first_point_center_offset(*chart), 0);
 
-    *series = lv_chart_add_series(*chart, lv_palette_main(LV_PALETTE_RED), LV_CHART_AXIS_PRIMARY_Y);
+    static lv_palette_t colors[] = {LV_PALETTE_RED, LV_PALETTE_GREEN};
+    for (uint8_t i = 0; i < series_count; i++)
+    {
+        lv_obj_t *series_container = lv_obj_create(wrapper);
+        lv_obj_remove_style_all(series_container);
+        lv_obj_set_size(series_container, lv_pct(100), 20);
+        lv_obj_set_flex_flow(series_container, LV_FLEX_FLOW_ROW);
+
+        lv_obj_t *color_square = lv_obj_create(series_container);
+        lv_obj_set_size(color_square, 10, 10);
+        lv_obj_set_style_radius(color_square, 0, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(color_square, lv_palette_main(colors[i]), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(color_square, LV_OPA_100, LV_PART_MAIN);
+
+        lv_obj_t *series_label = lv_label_create(series_container);
+        lv_label_set_text_static(series_label, series_labels[i]);
+
+        series[i] = lv_chart_add_series(*chart, lv_palette_main(colors[i]), LV_CHART_AXIS_PRIMARY_Y);
+    }
 }
 
 void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t vertical_resolution, const lv_display_flush_cb_t flush_cb, const lv_indev_read_cb_t read_cb)
@@ -126,7 +141,7 @@ void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t
     lv_obj_t *col2 = lv_obj_create(row);
     lv_obj_set_style_pad_row(col2, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_column(col2, 0, LV_PART_MAIN);
-    lv_obj_set_size(col2, lv_pct(100), lv_pct(150));
+    lv_obj_set_size(col2, lv_pct(100), lv_pct(3 * 4 * 50));
     lv_obj_set_flex_flow(col2, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_flex_main_place(col2, LV_FLEX_ALIGN_SPACE_EVENLY, LV_PART_MAIN);
 
@@ -150,7 +165,29 @@ void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t
     create_indicator(indicators, "CO2", "ppm", 400, 1000, &ui->co2, &ui->co2_value);
     create_indicator(indicators, "VOC", "ppb", 0, 100, &ui->voc, &ui->voc_value);
 
-    create_chart(col2, "Today", 24, &ui->chart[0], &ui->chart_series[0]);
-    create_chart(col2, "Tomorrow", 24, &ui->chart[1], &ui->chart_series[1]);
-    // create_chart(col2, "", 24, &ui->chart[2], &ui->chart_series[2]);
+    static const char *temp_legend[] = {"Temperature in °C", "Feels like in °C"};
+    static const char *wind_legend[] = {"Wind in km/h"};
+    static const char *pressure_legend[] = {"Pressure in hPa"};
+    static const char *humidity_legend[] = {"Relative humidity in %"};
+
+    lv_obj_t *label_text = lv_label_create(col2);
+    lv_label_set_text(label_text, "Today");
+    create_chart(col2, 24, 2, temp_legend, &ui->days[0].temp, ui->days[0].temp_series);
+    create_chart(col2, 24, 1, wind_legend, &ui->days[0].wind, ui->days[0].wind_series);
+    create_chart(col2, 24, 1, pressure_legend, &ui->days[0].pressure, ui->days[0].pressure_series);
+    create_chart(col2, 24, 1, humidity_legend, &ui->days[0].humidity, ui->days[0].humidity_series);
+
+    label_text = lv_label_create(col2);
+    lv_label_set_text(label_text, "Tomorrow");
+    create_chart(col2, 24, 2, temp_legend, &ui->days[1].temp, ui->days[1].temp_series);
+    create_chart(col2, 24, 1, wind_legend, &ui->days[1].wind, ui->days[1].wind_series);
+    create_chart(col2, 24, 1, pressure_legend, &ui->days[1].pressure, ui->days[1].pressure_series);
+    create_chart(col2, 24, 1, humidity_legend, &ui->days[1].humidity, ui->days[1].humidity_series);
+
+    label_text = lv_label_create(col2);
+    lv_label_set_text(label_text, "Overmorrow");
+    create_chart(col2, 24, 2, temp_legend, &ui->days[2].temp, ui->days[2].temp_series);
+    create_chart(col2, 24, 1, wind_legend, &ui->days[2].wind, ui->days[2].wind_series);
+    create_chart(col2, 24, 1, pressure_legend, &ui->days[2].pressure, ui->days[2].pressure_series);
+    create_chart(col2, 24, 1, humidity_legend, &ui->days[2].humidity, ui->days[2].humidity_series);
 }

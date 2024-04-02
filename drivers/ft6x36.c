@@ -62,10 +62,10 @@ static void command(i2c_inst_t *i2c_port, const uint8_t buf[], const uint8_t num
     i2c_write_blocking(i2c_port, FT6X36_ADDR, buf, num, false);
 }
 
-bool ft6x36_init(struct ft6x36_touch *touch, i2c_inst_t *i2c_port, const uint8_t threshold, const bool is_rotated)
+bool ft6x36_init(struct ft6x36_touch *touch, i2c_inst_t *i2c_port, const uint8_t threshold, const int degrees)
 {
     touch->i2c_port = i2c_port;
-    touch->is_rotated = is_rotated;
+    touch->degrees = degrees;
 
     if (read_byte(touch->i2c_port, FT6X36_PANEL_ID) != FT6X36_VENDID)
         return false;
@@ -80,18 +80,27 @@ bool ft6x36_init(struct ft6x36_touch *touch, i2c_inst_t *i2c_port, const uint8_t
     return true;
 }
 
-static void read_touch_point(struct ft6x36_point *point, const uint8_t data[], const bool is_rotated)
+static void read_touch_point(struct ft6x36_point *point, const uint8_t data[], const int degrees)
 {
     point->event = data[0] >> 6;
-    if (!is_rotated)
+    switch (degrees)
     {
+    case 270:
+        point->x = ((data[2] & 0x0F) << 8) | data[3];
+        point->y = 239 - (((data[0] & 0x0F) << 8) | data[1]);
+        break;
+    case 180:
+        point->x = 239 - (((data[0] & 0x0F) << 8) | data[1]);
+        point->y = 319 - (((data[2] & 0x0F) << 8) | data[3]);
+        break;
+    case 90:
+        point->x = 319 - (((data[2] & 0x0F) << 8) | data[3]);
+        point->y = ((data[0] & 0x0F) << 8) | data[1];
+        break;
+    default:
         point->x = ((data[0] & 0x0F) << 8) | data[1];
         point->y = ((data[2] & 0x0F) << 8) | data[3];
-    }
-    else
-    {
-        point->y = ((data[0] & 0x0F) << 8) | data[1];
-        point->x = ((data[2] & 0x0F) << 8) | data[3];
+        break;
     }
 }
 
@@ -102,6 +111,6 @@ uint8_t ft6x36_read_data(struct ft6x36_touch *touch)
     read(touch->i2c_port, FT6X36_NUM_TOUCHES, data, data_size);
     touch->data.touch_count = data[0] < 2 ? data[0] : 2;
     for (uint8_t i = 0; i < touch->data.touch_count; i++)
-        read_touch_point(&touch->data.touch_points[i], data + (FT6X36_P1_XH - FT6X36_NUM_TOUCHES) + (FT6X36_P2_XH - FT6X36_P1_XH) * i, touch->is_rotated);
+        read_touch_point(&touch->data.touch_points[i], data + (FT6X36_P1_XH - FT6X36_NUM_TOUCHES) + (FT6X36_P2_XH - FT6X36_P1_XH) * i, touch->degrees);
     return touch->data.touch_count;
 }

@@ -5,6 +5,7 @@
 #include "storage/storage.h"
 #include "https_client/https_client.h"
 #include "jsmn/json.h"
+#include "min_max/min_max.h"
 #include "drivers/ili9341.h"
 #include "drivers/ft6x36.h"
 #include "drivers/bme280.h"
@@ -65,6 +66,7 @@ struct weather_day_data
 
 struct weather_forecast
 {
+    bool valid;
     struct weather_day_data day[3];
 };
 
@@ -101,6 +103,7 @@ void weather_api_handler(const char *json, const jsmntok_t *t, const size_t coun
     struct weather_forecast *forecast = data->data;
     if (is_forecast_day)
     {
+        forecast->valid = true;
         if (!is_hour)
         {
             if (is_json_key(json, t, "sunrise"))
@@ -218,9 +221,10 @@ int main()
     gpio_set_function(20, GPIO_FUNC_I2C);
 
     ili9341_init(&display, spi0, 22, 26, 27);
-    ili9341_rotate(&display, 90, true);
+    const int rotation = 90;
+    ili9341_rotate(&display, rotation, true);
 
-    if (!ft6x36_init(&touch, i2c0, 15, true))
+    if (!ft6x36_init(&touch, i2c0, 15, rotation))
         printf("failed to init ft6x36\n");
 
     struct bme280_sensor bme280;
@@ -233,7 +237,7 @@ int main()
 
     char request[128];
     sniprintf(request, 128, "/v1/forecast.json?key=%s&q=%s&days=3", settings.key, settings.query);
-    uint32_t next_update = 0;
+    int8_t last_hour = 24;
 
     struct ui ui;
     ui_init(&ui, display.width, display.height, flush_cb, read_cb);
@@ -248,6 +252,10 @@ int main()
 
         if (bme280_read_data(&bme280))
         {
+            const uint16_t ccs811_humidity = bme280.data.humidity >> 1;
+            const uint16_t ccs811_temp = bme280.data.temperature > -25 * 100 ? ((uint32_t)(bme280.data.temperature + 25 * 100) << 9) / 100 : 0;
+            ccs811_set_env_data(&ccs811, ccs811_humidity, ccs811_temp);
+
             const float temp = bme280.data.temperature / 100.f;
             lv_bar_set_value(ui.temperature, temp, LV_ANIM_OFF);
             snprintf(value, sizeof(value), "%.1f", temp);
@@ -262,9 +270,6 @@ int main()
             lv_bar_set_value(ui.pressure, press, LV_ANIM_OFF);
             snprintf(value, sizeof(value), "%d", press);
             lv_label_set_text(ui.pressure_value, value);
-            const uint16_t ccs811_humidity = bme280.data.humidity >> 1;
-            const uint16_t ccs811_temp = bme280.data.temperature > -25 * 100 ? ((uint32_t)(bme280.data.temperature + 25 * 100) << 9) / 100 : 0;
-            ccs811_set_env_data(&ccs811, ccs811_humidity, ccs811_temp);
         }
 
         if (ccs811_read_data(&ccs811))
@@ -278,28 +283,56 @@ int main()
             lv_label_set_text(ui.voc_value, value);
         }
 
-        if (next_update < to_ms_since_boot(get_absolute_time()))
+        if (last_hour != time.hour)
         {
             data = https_get_request("api.weatherapi.com", request, NULL);
             if (data)
             {
-                next_update = to_ms_since_boot(make_timeout_time_ms(60 * 60 * 1000));
+                last_hour = time.hour;
                 struct weather_forecast forecast;
+                forecast.valid = false;
                 json_parse(data, weather_api_handler, &forecast);
-                for (int i = 0; i < 2 /*3*/; i++)
+                free(data);
+                for (int i = 0; i < 3; i++)
                 {
+                    lv_chart_set_range(
+                        ui.days[i].temp,
+                        LV_CHART_AXIS_PRIMARY_Y,
+                        min_float(min_float_array(&forecast.day[i].hour[0].temp_c, sizeof(forecast.day[i].hour[0]), 24), min_float_array(&forecast.day[i].hour[0].feelslike_c, sizeof(forecast.day[i].hour[0]), 24)),
+                        max_float(max_float_array(&forecast.day[i].hour[0].temp_c, sizeof(forecast.day[i].hour[0]), 24), max_float_array(&forecast.day[i].hour[0].feelslike_c, sizeof(forecast.day[i].hour[0]), 24)));
+                    lv_chart_set_range(
+                        ui.days[i].wind,
+                        LV_CHART_AXIS_PRIMARY_Y,
+                        min_float_array(&forecast.day[i].hour[0].wind_kph, sizeof(forecast.day[i].hour[0]), 24),
+                        max_float_array(&forecast.day[i].hour[0].wind_kph, sizeof(forecast.day[i].hour[0]), 24));
+                    lv_chart_set_range(
+                        ui.days[i].pressure,
+                        LV_CHART_AXIS_PRIMARY_Y,
+                        min_int_array(&forecast.day[i].hour[0].pressure_mb, sizeof(forecast.day[i].hour[0]), 24),
+                        max_int_array(&forecast.day[i].hour[0].pressure_mb, sizeof(forecast.day[i].hour[0]), 24));
+                    lv_chart_set_range(
+                        ui.days[i].humidity,
+                        LV_CHART_AXIS_PRIMARY_Y,
+                        min_int_array(&forecast.day[i].hour[0].humidity, sizeof(forecast.day[i].hour[0]), 24),
+                        max_int_array(&forecast.day[i].hour[0].humidity, sizeof(forecast.day[i].hour[0]), 24));
                     for (int j = 0; j < 24; j++)
                     {
-                        ui.chart_series[i]->y_points[j] = forecast.day[i].hour[j].temp_c;
+                        ui.days[i].temp_series[0]->y_points[j] = forecast.day[i].hour[j].temp_c;
+                        ui.days[i].temp_series[1]->y_points[j] = forecast.day[i].hour[j].feelslike_c;
+                        ui.days[i].wind_series[0]->y_points[j] = forecast.day[i].hour[j].wind_kph;
+                        ui.days[i].pressure_series[0]->y_points[j] = forecast.day[i].hour[j].pressure_mb;
+                        ui.days[i].humidity_series[0]->y_points[j] = forecast.day[i].hour[j].humidity;
                     }
-                    lv_chart_refresh(ui.chart[i]);
+                    lv_chart_refresh(ui.days[i].temp);
+                    lv_chart_refresh(ui.days[i].wind);
+                    lv_chart_refresh(ui.days[i].pressure);
+                    lv_chart_refresh(ui.days[i].humidity);
                 }
-                free(data);
             }
         }
         lv_timer_handler();
-        lv_tick_inc(5);
-        sleep_ms(5);
+        lv_tick_inc(1);
+        sleep_ms(1);
     }
     return 0;
 }

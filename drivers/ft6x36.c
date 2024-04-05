@@ -83,23 +83,25 @@ bool ft6x36_init(struct ft6x36_touch *touch, i2c_inst_t *i2c_port, const uint8_t
 static void read_touch_point(struct ft6x36_point *point, const uint8_t data[], const int degrees)
 {
     point->event = data[0] >> 6;
+    const uint16_t x = ((data[0] & 0x0F) << 8) | data[1];
+    const uint16_t y = ((data[2] & 0x0F) << 8) | data[3];
     switch (degrees)
     {
     case 270:
-        point->x = ((data[2] & 0x0F) << 8) | data[3];
-        point->y = 239 - (((data[0] & 0x0F) << 8) | data[1]);
+        point->x = y;
+        point->y = 239 - x;
         break;
     case 180:
-        point->x = 239 - (((data[0] & 0x0F) << 8) | data[1]);
-        point->y = 319 - (((data[2] & 0x0F) << 8) | data[3]);
+        point->x = 239 - x;
+        point->y = 319 - y;
         break;
     case 90:
-        point->x = 319 - (((data[2] & 0x0F) << 8) | data[3]);
-        point->y = ((data[0] & 0x0F) << 8) | data[1];
+        point->x = 319 - y;
+        point->y = x;
         break;
     default:
-        point->x = ((data[0] & 0x0F) << 8) | data[1];
-        point->y = ((data[2] & 0x0F) << 8) | data[3];
+        point->x = x;
+        point->y = y;
         break;
     }
 }

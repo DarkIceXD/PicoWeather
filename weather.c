@@ -48,10 +48,10 @@ void world_time_api_handler(const char *json, const jsmntok_t *t, const size_t c
 struct weather_hour_data
 {
     char time[16 + 1];
-    float temp_c;
-    float feelslike_c;
-    float wind_kph;
-    int pressure_mb;
+    float temp;
+    float feelslike_temp;
+    float wind;
+    int pressure;
     int humidity;
     int chance_of_rain;
     int chance_of_snow;
@@ -123,19 +123,19 @@ void weather_api_handler(const char *json, const jsmntok_t *t, const size_t coun
             }
             else if (is_json_key(json, t, "temp_c"))
             {
-                forecast->day[i].hour[data->array_index].temp_c = strtof(json + (t + 1)->start, NULL);
+                forecast->day[i].hour[data->array_index].temp = strtof(json + (t + 1)->start, NULL);
             }
             else if (is_json_key(json, t, "feelslike_c"))
             {
-                forecast->day[i].hour[data->array_index].feelslike_c = strtof(json + (t + 1)->start, NULL);
+                forecast->day[i].hour[data->array_index].feelslike_temp = strtof(json + (t + 1)->start, NULL);
             }
             else if (is_json_key(json, t, "wind_kph"))
             {
-                forecast->day[i].hour[data->array_index].wind_kph = strtof(json + (t + 1)->start, NULL);
+                forecast->day[i].hour[data->array_index].wind = strtof(json + (t + 1)->start, NULL);
             }
             else if (is_json_key(json, t, "pressure_mb"))
             {
-                forecast->day[i].hour[data->array_index].pressure_mb = strtol(json + (t + 1)->start, NULL, 10);
+                forecast->day[i].hour[data->array_index].pressure = strtol(json + (t + 1)->start, NULL, 10);
             }
             else if (is_json_key(json, t, "humidity"))
             {
@@ -298,18 +298,18 @@ int main()
                     lv_chart_set_range(
                         ui.days[i].temp,
                         LV_CHART_AXIS_PRIMARY_Y,
-                        min_float(min_float_array(&forecast.day[i].hour[0].temp_c, sizeof(forecast.day[i].hour[0]), 24), min_float_array(&forecast.day[i].hour[0].feelslike_c, sizeof(forecast.day[i].hour[0]), 24)),
-                        max_float(max_float_array(&forecast.day[i].hour[0].temp_c, sizeof(forecast.day[i].hour[0]), 24), max_float_array(&forecast.day[i].hour[0].feelslike_c, sizeof(forecast.day[i].hour[0]), 24)));
+                        min_float(min_float_array(&forecast.day[i].hour[0].temp, sizeof(forecast.day[i].hour[0]), 24), min_float_array(&forecast.day[i].hour[0].feelslike_temp, sizeof(forecast.day[i].hour[0]), 24)),
+                        max_float(max_float_array(&forecast.day[i].hour[0].temp, sizeof(forecast.day[i].hour[0]), 24), max_float_array(&forecast.day[i].hour[0].feelslike_temp, sizeof(forecast.day[i].hour[0]), 24)));
                     lv_chart_set_range(
                         ui.days[i].wind,
                         LV_CHART_AXIS_PRIMARY_Y,
-                        min_float_array(&forecast.day[i].hour[0].wind_kph, sizeof(forecast.day[i].hour[0]), 24),
-                        max_float_array(&forecast.day[i].hour[0].wind_kph, sizeof(forecast.day[i].hour[0]), 24));
+                        min_float_array(&forecast.day[i].hour[0].wind, sizeof(forecast.day[i].hour[0]), 24),
+                        max_float_array(&forecast.day[i].hour[0].wind, sizeof(forecast.day[i].hour[0]), 24));
                     lv_chart_set_range(
                         ui.days[i].pressure,
                         LV_CHART_AXIS_PRIMARY_Y,
-                        min_int_array(&forecast.day[i].hour[0].pressure_mb, sizeof(forecast.day[i].hour[0]), 24),
-                        max_int_array(&forecast.day[i].hour[0].pressure_mb, sizeof(forecast.day[i].hour[0]), 24));
+                        min_int_array(&forecast.day[i].hour[0].pressure, sizeof(forecast.day[i].hour[0]), 24),
+                        max_int_array(&forecast.day[i].hour[0].pressure, sizeof(forecast.day[i].hour[0]), 24));
                     lv_chart_set_range(
                         ui.days[i].humidity,
                         LV_CHART_AXIS_PRIMARY_Y,
@@ -317,10 +317,10 @@ int main()
                         max_int_array(&forecast.day[i].hour[0].humidity, sizeof(forecast.day[i].hour[0]), 24));
                     for (int j = 0; j < 24; j++)
                     {
-                        ui.days[i].temp_series[0]->y_points[j] = forecast.day[i].hour[j].temp_c;
-                        ui.days[i].temp_series[1]->y_points[j] = forecast.day[i].hour[j].feelslike_c;
-                        ui.days[i].wind_series[0]->y_points[j] = forecast.day[i].hour[j].wind_kph;
-                        ui.days[i].pressure_series[0]->y_points[j] = forecast.day[i].hour[j].pressure_mb;
+                        ui.days[i].temp_series[0]->y_points[j] = forecast.day[i].hour[j].temp;
+                        ui.days[i].temp_series[1]->y_points[j] = forecast.day[i].hour[j].feelslike_temp;
+                        ui.days[i].wind_series[0]->y_points[j] = forecast.day[i].hour[j].wind;
+                        ui.days[i].pressure_series[0]->y_points[j] = forecast.day[i].hour[j].pressure;
                         ui.days[i].humidity_series[0]->y_points[j] = forecast.day[i].hour[j].humidity;
                     }
                     lv_chart_refresh(ui.days[i].temp);

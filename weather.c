@@ -315,6 +315,11 @@ int main()
                         LV_CHART_AXIS_PRIMARY_Y,
                         min_int_array(&forecast.day[i].hour[0].humidity, sizeof(forecast.day[i].hour[0]), 24),
                         max_int_array(&forecast.day[i].hour[0].humidity, sizeof(forecast.day[i].hour[0]), 24));
+                    lv_chart_set_range(
+                        ui.days[i].rain,
+                        LV_CHART_AXIS_PRIMARY_Y,
+                        min_int(min_int_array(&forecast.day[i].hour[0].chance_of_rain, sizeof(forecast.day[i].hour[0]), 24), min_int_array(&forecast.day[i].hour[0].chance_of_snow, sizeof(forecast.day[i].hour[0]), 24)),
+                        max_int(max_int_array(&forecast.day[i].hour[0].chance_of_rain, sizeof(forecast.day[i].hour[0]), 24), max_int_array(&forecast.day[i].hour[0].chance_of_snow, sizeof(forecast.day[i].hour[0]), 24)));
                     for (int j = 0; j < 24; j++)
                     {
                         ui.days[i].temp_series[0]->y_points[j] = forecast.day[i].hour[j].temp;

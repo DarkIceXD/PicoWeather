@@ -322,11 +322,14 @@ int main()
                         ui.days[i].wind_series[0]->y_points[j] = forecast.day[i].hour[j].wind;
                         ui.days[i].pressure_series[0]->y_points[j] = forecast.day[i].hour[j].pressure;
                         ui.days[i].humidity_series[0]->y_points[j] = forecast.day[i].hour[j].humidity;
+                        ui.days[i].rain_series[0]->y_points[j] = forecast.day[i].hour[j].chance_of_rain;
+                        ui.days[i].rain_series[1]->y_points[j] = forecast.day[i].hour[j].chance_of_snow;
                     }
                     lv_chart_refresh(ui.days[i].temp);
                     lv_chart_refresh(ui.days[i].wind);
                     lv_chart_refresh(ui.days[i].pressure);
                     lv_chart_refresh(ui.days[i].humidity);
+                    lv_chart_refresh(ui.days[i].rain);
                 }
             }
         }

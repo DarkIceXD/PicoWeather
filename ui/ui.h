@@ -19,8 +19,13 @@ struct chart
 
 struct ui
 {
-    lv_obj_t *time;
+    lv_obj_t *ssid;
+    lv_obj_t *password;
+    lv_obj_t *weatherapi_key;
+    lv_obj_t *query;
     lv_obj_t *date;
+    lv_obj_t *time;
+    lv_obj_t *location;
     lv_obj_t *temperature;
     lv_obj_t *temperature_value;
     lv_obj_t *humidity;
@@ -34,6 +39,6 @@ struct ui
     struct chart days[3];
 };
 
-void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t vertical_resolution, const lv_display_flush_cb_t flush_cb, const lv_indev_read_cb_t read_cb);
+void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t vertical_resolution, const lv_display_flush_cb_t flush_cb, const lv_indev_read_cb_t read_cb, const lv_event_cb_t save_cb);
 
 #endif

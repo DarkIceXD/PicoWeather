@@ -16,12 +16,12 @@ struct settings
 {
     char ap_name[32 + 1];
     char password[64 + 1];
-    char key[64 + 1];
+    char weatherapi_key[64 + 1];
     char query[64 + 1];
 } settings = {
     .ap_name = "",
     .password = "",
-    .key = "",
+    .weatherapi_key = "",
     .query = "Berlin",
 };
 
@@ -155,6 +155,7 @@ void weather_api_handler(const char *json, const jsmntok_t *t, const size_t coun
 
 struct ili9341_display display;
 struct ft6x36_touch touch;
+struct ui ui;
 
 static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
@@ -176,6 +177,19 @@ static void read_cb(lv_indev_t *indev, lv_indev_data_t *data)
     else
     {
         data->state = LV_INDEV_STATE_RELEASED;
+    }
+}
+
+static void save_event(lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    if (code == LV_EVENT_CLICKED)
+    {
+        strncpy(settings.ap_name, lv_textarea_get_text(ui.ssid), sizeof(settings.ap_name) - 1);
+        strncpy(settings.password, lv_textarea_get_text(ui.password), sizeof(settings.password) - 1);
+        strncpy(settings.weatherapi_key, lv_textarea_get_text(ui.weatherapi_key), sizeof(settings.weatherapi_key) - 1);
+        strncpy(settings.query, lv_textarea_get_text(ui.query), sizeof(settings.query) - 1);
+        save(&settings, sizeof(settings));
     }
 }
 
@@ -235,12 +249,13 @@ int main()
     if (!ccs811_init(&ccs811, i2c0, CCS811_DRIVE_MODE_1SEC, 0, 0))
         printf("failed to init ccs811\n");
 
-    char request[128];
-    sniprintf(request, 128, "/v1/forecast.json?key=%s&q=%s&days=3", settings.key, settings.query);
     int8_t last_hour = 24;
 
-    struct ui ui;
-    ui_init(&ui, display.width, display.height, flush_cb, read_cb);
+    ui_init(&ui, display.width, display.height, flush_cb, read_cb, save_event);
+    lv_textarea_set_text(ui.ssid, settings.ap_name);
+    lv_textarea_set_text(ui.password, settings.password);
+    lv_textarea_set_text(ui.weatherapi_key, settings.weatherapi_key);
+    lv_textarea_set_text(ui.query, settings.query);
     while (true)
     {
         char value[20];
@@ -285,6 +300,8 @@ int main()
 
         if (last_hour != time.hour)
         {
+            char request[128];
+            sniprintf(request, 128, "/v1/forecast.json?key=%s&q=%s&days=3", settings.weatherapi_key, settings.query);
             data = https_get_request("api.weatherapi.com", request, NULL);
             if (data)
             {

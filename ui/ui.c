@@ -158,7 +158,18 @@ static void textarea_event(lv_event_t *e)
     }
 }
 
-void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t vertical_resolution, const lv_display_flush_cb_t flush_cb, const lv_indev_read_cb_t read_cb)
+static void create_textarea(lv_obj_t *parent, const char *label, lv_obj_t **area)
+{
+    lv_obj_t *label_obj = lv_label_create(parent);
+    lv_label_set_text_static(label_obj, label);
+
+    *area = lv_textarea_create(parent);
+    lv_textarea_set_one_line(*area, true);
+    lv_obj_set_width(*area, lv_pct(60));
+    lv_obj_add_event_cb(*area, textarea_event, LV_EVENT_ALL, NULL);
+}
+
+void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t vertical_resolution, const lv_display_flush_cb_t flush_cb, const lv_indev_read_cb_t read_cb, const lv_event_cb_t save_cb)
 {
     lv_init();
     lv_display_t *display = lv_display_create(horizontal_resolution, vertical_resolution);
@@ -178,46 +189,51 @@ void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t
 
     lv_obj_t *sub_page = lv_menu_page_create(menu, "Settings");
 
-    lv_obj_t *ssid = lv_textarea_create(sub_page);
-    lv_textarea_set_one_line(ssid, true);
-    lv_obj_set_width(ssid, lv_pct(40));
-    lv_obj_add_event_cb(ssid, textarea_event, LV_EVENT_ALL, NULL);
+    lv_obj_t *sub = lv_obj_create(sub_page);
+    lv_obj_set_style_pad_row(sub, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_column(sub, 0, LV_PART_MAIN);
+    lv_obj_set_size(sub, lv_pct(100), lv_pct(50));
+    lv_obj_set_flex_flow(sub, LV_FLEX_FLOW_COLUMN);
 
-    lv_obj_t *password = lv_textarea_create(sub_page);
-    lv_textarea_set_one_line(password, true);
-    lv_obj_set_width(password, lv_pct(40));
-    lv_obj_add_event_cb(password, textarea_event, LV_EVENT_ALL, NULL);
+    create_textarea(sub, "SSID:", &ui->ssid);
+    create_textarea(sub, "Password:", &ui->password);
+
+    lv_obj_t *connect = lv_button_create(sub);
+    lv_obj_t *connect_label = lv_label_create(connect);
+    lv_label_set_text_static(connect_label, LV_SYMBOL_WIFI " Connect");
+
+    create_textarea(sub, "WeatherAPI Key:", &ui->weatherapi_key);
+    create_textarea(sub, "Query (e.g. City name):", &ui->query);
+
+    lv_obj_t *save = lv_button_create(sub);
+    lv_obj_add_event_cb(save, save_cb, LV_EVENT_ALL, NULL);
+    lv_obj_t *save_label = lv_label_create(save);
+    lv_label_set_text_static(save_label, LV_SYMBOL_SAVE " Save");
 
     keyboard = lv_keyboard_create(sub_page);
     lv_obj_set_size(keyboard, lv_pct(100), lv_pct(50));
-    lv_keyboard_set_textarea(keyboard, ssid);
 
     lv_obj_t *main_page = lv_menu_page_create(menu, NULL);
 
-    lv_obj_t *row = lv_obj_create(main_page);
-    lv_obj_remove_style_all(row);
-    lv_obj_set_size(row, lv_pct(100), lv_pct(100));
-    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
+    lv_obj_t *main = lv_obj_create(main_page);
+    lv_obj_set_style_pad_row(main, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_column(main, 0, LV_PART_MAIN);
+    lv_obj_set_size(main, lv_pct(100), lv_pct(100));
+    lv_obj_set_flex_flow(main, LV_FLEX_FLOW_COLUMN);
 
-    lv_obj_t *col1 = lv_obj_create(row);
-    lv_obj_set_style_pad_row(col1, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_column(col1, 0, LV_PART_MAIN);
-    lv_obj_set_size(col1, lv_pct(100), lv_pct(100));
-    lv_obj_set_flex_flow(col1, LV_FLEX_FLOW_COLUMN);
-
-    lv_obj_t *btn1 = lv_button_create(row);
-    lv_obj_t *label = lv_label_create(btn1);
+    lv_obj_t *settings_button = lv_button_create(main_page);
+    lv_obj_t *label = lv_label_create(settings_button);
     lv_label_set_text_static(label, LV_SYMBOL_SETTINGS);
-    lv_menu_set_load_page_event(menu, btn1, sub_page);
+    lv_menu_set_load_page_event(menu, settings_button, sub_page);
 
-    ui->date = lv_label_create(col1);
-    ui->time = lv_label_create(col1);
+    ui->date = lv_label_create(main);
+    ui->time = lv_label_create(main);
     lv_obj_set_style_text_font(ui->time, &lv_font_montserrat_48, LV_PART_MAIN);
 
-    lv_obj_t *location = lv_label_create(col1);
-    lv_label_set_text(location, LV_SYMBOL_HOME "Berlin");
+    ui->location = lv_label_create(main);
+    lv_label_set_text(ui->location, LV_SYMBOL_HOME " Berlin");
 
-    lv_obj_t *indicators = lv_obj_create(col1);
+    lv_obj_t *indicators = lv_obj_create(main);
     lv_obj_remove_style_all(indicators);
     lv_obj_set_flex_grow(indicators, 1);
     lv_obj_set_width(indicators, lv_pct(100));
@@ -230,13 +246,13 @@ void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t
     create_indicator(indicators, "CO2", "ppm", 400, 1000, &ui->co2, &ui->co2_value);
     create_indicator(indicators, "VOC", "ppb", 0, 100, &ui->voc, &ui->voc_value);
 
-    create_weather_charts(row, &ui->days[0]);
+    create_weather_charts(main_page, &ui->days[0]);
     lv_label_set_text(ui->days[0].label, "Today");
 
-    create_weather_charts(row, &ui->days[1]);
+    create_weather_charts(main_page, &ui->days[1]);
     lv_label_set_text(ui->days[1].label, "Tomorrow");
 
-    create_weather_charts(row, &ui->days[2]);
+    create_weather_charts(main_page, &ui->days[2]);
     lv_label_set_text(ui->days[2].label, "Overmorrow");
 
     lv_menu_set_page(menu, main_page);

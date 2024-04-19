@@ -95,12 +95,18 @@ static void create_chart(lv_obj_t *parent, const uint32_t points, const uint32_t
     lv_scale_set_range(scale, 0, points);
     lv_obj_set_style_pad_hor(scale, lv_chart_get_first_point_center_offset(*chart), 0);
 
+    lv_obj_t *legend = lv_obj_create(wrapper);
+    lv_obj_remove_style_all(legend);
+    lv_obj_set_size(legend, lv_pct(100), 15);
+    lv_obj_set_flex_flow(legend, LV_FLEX_FLOW_ROW);
+
     static lv_palette_t colors[] = {LV_PALETTE_RED, LV_PALETTE_GREEN};
     for (uint8_t i = 0; i < series_count; i++)
     {
-        lv_obj_t *series_container = lv_obj_create(wrapper);
+        lv_obj_t *series_container = lv_obj_create(legend);
         lv_obj_remove_style_all(series_container);
-        lv_obj_set_size(series_container, lv_pct(100), 20);
+        lv_obj_set_flex_grow(series_container, 1);
+        lv_obj_set_height(series_container, lv_pct(100));
         lv_obj_set_flex_flow(series_container, LV_FLEX_FLOW_ROW);
 
         lv_obj_t *color_square = lv_obj_create(series_container);
@@ -116,6 +122,42 @@ static void create_chart(lv_obj_t *parent, const uint32_t points, const uint32_t
     }
 }
 
+static void create_weather_charts(lv_obj_t *parent, struct chart *chart_data)
+{
+    static const char *temp_legend[] = {"Temperature in °C", "Feels like in °C"};
+    static const char *wind_legend[] = {"Wind in km/h"};
+    static const char *pressure_legend[] = {"Pressure in hPa"};
+    static const char *humidity_legend[] = {"Relative humidity in %"};
+    static const char *rain_legend[] = {"Chance of rain in %", "Chance of snow in %"};
+
+    lv_obj_t *wrapper = lv_obj_create(parent);
+    lv_obj_set_style_pad_row(wrapper, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_column(wrapper, 0, LV_PART_MAIN);
+    lv_obj_set_size(wrapper, lv_pct(100), lv_pct(6 * 50));
+    lv_obj_set_flex_flow(wrapper, LV_FLEX_FLOW_COLUMN);
+
+    chart_data->label = lv_label_create(wrapper);
+    lv_obj_set_style_text_font(chart_data->label, &lv_font_montserrat_24, LV_PART_MAIN);
+    create_chart(wrapper, 24, 2, temp_legend, &chart_data->temp, chart_data->temp_series);
+    create_chart(wrapper, 24, 1, wind_legend, &chart_data->wind, chart_data->wind_series);
+    create_chart(wrapper, 24, 1, pressure_legend, &chart_data->pressure, chart_data->pressure_series);
+    create_chart(wrapper, 24, 1, humidity_legend, &chart_data->humidity, chart_data->humidity_series);
+    create_chart(wrapper, 24, 2, rain_legend, &chart_data->rain, chart_data->rain_series);
+}
+
+static lv_obj_t *keyboard;
+
+static void textarea_event(lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t *ta = lv_event_get_target(e);
+    if (code == LV_EVENT_CLICKED || code == LV_EVENT_FOCUSED)
+    {
+        if (keyboard)
+            lv_keyboard_set_textarea(keyboard, ta);
+    }
+}
+
 void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t vertical_resolution, const lv_display_flush_cb_t flush_cb, const lv_indev_read_cb_t read_cb)
 {
     lv_init();
@@ -127,7 +169,32 @@ void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t
     lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(indev, read_cb);
 
-    lv_obj_t *row = lv_obj_create(lv_screen_active());
+    lv_obj_t *menu = lv_menu_create(lv_screen_active());
+    lv_obj_set_size(menu, lv_pct(100), lv_pct(100));
+
+    lv_obj_t *back_btn = lv_menu_get_main_header_back_button(menu);
+    lv_obj_t *back_button_label = lv_label_create(back_btn);
+    lv_label_set_text_static(back_button_label, "Back");
+
+    lv_obj_t *sub_page = lv_menu_page_create(menu, "Settings");
+
+    lv_obj_t *ssid = lv_textarea_create(sub_page);
+    lv_textarea_set_one_line(ssid, true);
+    lv_obj_set_width(ssid, lv_pct(40));
+    lv_obj_add_event_cb(ssid, textarea_event, LV_EVENT_ALL, NULL);
+
+    lv_obj_t *password = lv_textarea_create(sub_page);
+    lv_textarea_set_one_line(password, true);
+    lv_obj_set_width(password, lv_pct(40));
+    lv_obj_add_event_cb(password, textarea_event, LV_EVENT_ALL, NULL);
+
+    keyboard = lv_keyboard_create(sub_page);
+    lv_obj_set_size(keyboard, lv_pct(100), lv_pct(50));
+    lv_keyboard_set_textarea(keyboard, ssid);
+
+    lv_obj_t *main_page = lv_menu_page_create(menu, NULL);
+
+    lv_obj_t *row = lv_obj_create(main_page);
     lv_obj_remove_style_all(row);
     lv_obj_set_size(row, lv_pct(100), lv_pct(100));
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
@@ -138,12 +205,10 @@ void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t
     lv_obj_set_size(col1, lv_pct(100), lv_pct(100));
     lv_obj_set_flex_flow(col1, LV_FLEX_FLOW_COLUMN);
 
-    lv_obj_t *col2 = lv_obj_create(row);
-    lv_obj_set_style_pad_row(col2, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_column(col2, 0, LV_PART_MAIN);
-    lv_obj_set_size(col2, lv_pct(100), lv_pct(3 * 4 * 50));
-    lv_obj_set_flex_flow(col2, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_flex_main_place(col2, LV_FLEX_ALIGN_SPACE_EVENLY, LV_PART_MAIN);
+    lv_obj_t *btn1 = lv_button_create(row);
+    lv_obj_t *label = lv_label_create(btn1);
+    lv_label_set_text_static(label, LV_SYMBOL_SETTINGS);
+    lv_menu_set_load_page_event(menu, btn1, sub_page);
 
     ui->date = lv_label_create(col1);
     ui->time = lv_label_create(col1);
@@ -165,29 +230,14 @@ void ui_init(struct ui *ui, const uint32_t horizontal_resolution, const uint32_t
     create_indicator(indicators, "CO2", "ppm", 400, 1000, &ui->co2, &ui->co2_value);
     create_indicator(indicators, "VOC", "ppb", 0, 100, &ui->voc, &ui->voc_value);
 
-    static const char *temp_legend[] = {"Temperature in °C", "Feels like in °C"};
-    static const char *wind_legend[] = {"Wind in km/h"};
-    static const char *pressure_legend[] = {"Pressure in hPa"};
-    static const char *humidity_legend[] = {"Relative humidity in %"};
+    create_weather_charts(row, &ui->days[0]);
+    lv_label_set_text(ui->days[0].label, "Today");
 
-    lv_obj_t *label_text = lv_label_create(col2);
-    lv_label_set_text(label_text, "Today");
-    create_chart(col2, 24, 2, temp_legend, &ui->days[0].temp, ui->days[0].temp_series);
-    create_chart(col2, 24, 1, wind_legend, &ui->days[0].wind, ui->days[0].wind_series);
-    create_chart(col2, 24, 1, pressure_legend, &ui->days[0].pressure, ui->days[0].pressure_series);
-    create_chart(col2, 24, 1, humidity_legend, &ui->days[0].humidity, ui->days[0].humidity_series);
+    create_weather_charts(row, &ui->days[1]);
+    lv_label_set_text(ui->days[1].label, "Tomorrow");
 
-    label_text = lv_label_create(col2);
-    lv_label_set_text(label_text, "Tomorrow");
-    create_chart(col2, 24, 2, temp_legend, &ui->days[1].temp, ui->days[1].temp_series);
-    create_chart(col2, 24, 1, wind_legend, &ui->days[1].wind, ui->days[1].wind_series);
-    create_chart(col2, 24, 1, pressure_legend, &ui->days[1].pressure, ui->days[1].pressure_series);
-    create_chart(col2, 24, 1, humidity_legend, &ui->days[1].humidity, ui->days[1].humidity_series);
+    create_weather_charts(row, &ui->days[2]);
+    lv_label_set_text(ui->days[2].label, "Overmorrow");
 
-    label_text = lv_label_create(col2);
-    lv_label_set_text(label_text, "Overmorrow");
-    create_chart(col2, 24, 2, temp_legend, &ui->days[2].temp, ui->days[2].temp_series);
-    create_chart(col2, 24, 1, wind_legend, &ui->days[2].wind, ui->days[2].wind_series);
-    create_chart(col2, 24, 1, pressure_legend, &ui->days[2].pressure, ui->days[2].pressure_series);
-    create_chart(col2, 24, 1, humidity_legend, &ui->days[2].humidity, ui->days[2].humidity_series);
+    lv_menu_set_page(menu, main_page);
 }

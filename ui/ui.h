@@ -4,6 +4,7 @@
 
 struct chart
 {
+    lv_obj_t *label;
     lv_obj_t *temp;
     lv_chart_series_t *temp_series[2];
     lv_obj_t *wind;
@@ -12,6 +13,8 @@ struct chart
     lv_chart_series_t *pressure_series[1];
     lv_obj_t *humidity;
     lv_chart_series_t *humidity_series[1];
+    lv_obj_t *rain;
+    lv_chart_series_t *rain_series[2];
 };
 
 struct ui

@@ -119,12 +119,16 @@ static void command_with_data(const struct ili9341_display *display, const uint8
     gpio_put(display->cs, 1);
 }
 
-void ili9341_init(struct ili9341_display *display, spi_inst_t *spi_port, const uint reset, const uint dc, const uint cs)
+void ili9341_init(struct ili9341_display *display, spi_inst_t *spi_port, const uint cs, const uint reset, const uint dc)
 {
     display->spi_port = spi_port;
+    display->cs = cs;
     display->reset = reset;
     display->dc = dc;
-    display->cs = cs;
+
+    gpio_init(display->cs);
+    gpio_set_dir(display->cs, GPIO_OUT);
+    gpio_put(display->cs, 1);
 
     gpio_init(display->reset);
     gpio_set_dir(display->reset, GPIO_OUT);
@@ -132,10 +136,6 @@ void ili9341_init(struct ili9341_display *display, spi_inst_t *spi_port, const u
     gpio_init(display->dc);
     gpio_set_dir(display->dc, GPIO_OUT);
     gpio_put(display->dc, 1);
-
-    gpio_init(display->cs);
-    gpio_set_dir(display->cs, GPIO_OUT);
-    gpio_put(display->cs, 1);
 
     sleep_ms(1);
     gpio_put(display->reset, 1);

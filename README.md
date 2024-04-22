@@ -26,13 +26,34 @@ PicoWeather is a weather station project built using Raspberry Pi Pico microcont
 
 ### Connecting the Display and Touch sensor
 
-#### TODO
+- `VCC` -> `3V3(OUT)`
+- `GND` -> `GND`
+
+#### Display
+- `LCD_CS` -> `GP22`
+- `LCD_RST` -> `GP26`
+- `LCD_RS` -> `GP27`
+- `SDI(MOSI)` -> `GP19`
+- `SCK` -> `GP18`
+
+#### Touch sensor
+- `CTP_SCL` -> `GP21`
+- `CTP_RST` -> `3V3(OUT)`
+- `CTP_SDA` -> `GP20`
 
 ### Connecting the BME280 sensor
 
-#### TODO
-
+- `VCC` -> `3V3(OUT)`
+- `GND` -> `GND`
+- `SCL` -> `GP21`
+- `SDA` -> `GP20`
+- `CSB` -> `3V3(OUT)`
+- `SDO` -> `GND`
 
 ### Connecting the CCS811 sensor
 
-#### TODO
+- `VCC` -> `3V3(OUT)`
+- `GND` -> `GND`
+- `SCL` -> `GP21`
+- `SDA` -> `GP20`
+- `WAK` -> `GND`

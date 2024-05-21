@@ -47,7 +47,6 @@ void world_time_api_handler(const char *json, const jsmntok_t *t, const size_t c
 
 struct weather_hour_data
 {
-    char time[16 + 1];
     float temp;
     float feelslike_temp;
     float wind;
@@ -117,11 +116,7 @@ void weather_api_handler(const char *json, const jsmntok_t *t, const size_t coun
         }
         else
         {
-            if (is_json_key(json, t, "time"))
-            {
-                strlcpy(forecast->day[i].hour[data->array_index].time, json + (t + 1)->start, sizeof(forecast->day[i].hour[data->array_index].time));
-            }
-            else if (is_json_key(json, t, "temp_c"))
+            if (is_json_key(json, t, "temp_c"))
             {
                 forecast->day[i].hour[data->array_index].temp = strtof(json + (t + 1)->start, NULL);
             }
@@ -196,7 +191,6 @@ static void save_event(lv_event_t *e)
 int main()
 {
     stdio_init_all();
-    datetime_t time;
     load(&settings, sizeof(settings));
     if (cyw43_arch_init())
     {
@@ -205,25 +199,8 @@ int main()
     }
 
     cyw43_arch_enable_sta_mode();
-    int retries = 2;
-    int err;
-    do
-    {
-        err = cyw43_arch_wifi_connect_timeout_ms(settings.ap_name, settings.password, CYW43_AUTH_WPA2_AES_PSK, 30000);
-    } while ((retries--) && err);
-    if (err)
-    {
-        printf("failed to connect after 2 retries\n");
-        return 1;
-    }
-
     rtc_init();
-    char *data = https_get_request("worldtimeapi.org", "/api/ip", NULL);
-    if (data)
-    {
-        json_parse(data, world_time_api_handler, &time);
-        free(data);
-    }
+    datetime_t time = {0};
     rtc_set_datetime(&time);
 
     spi_init(spi0, 62500000);
@@ -249,7 +226,8 @@ int main()
     if (!ccs811_init(&ccs811, i2c0, CCS811_DRIVE_MODE_1SEC, 0, 0))
         printf("failed to init ccs811\n");
 
-    int8_t last_hour = 24;
+    int8_t last_refresh_hour_timeapi = 24;
+    int8_t last_refresh_hour_weatherapi = 24;
 
     ui_init(&ui, display.width, display.height, flush_cb, read_cb, save_event);
     lv_textarea_set_text(ui.ssid, settings.ap_name);
@@ -297,61 +275,84 @@ int main()
             snprintf(value, sizeof(value), "%d", ccs811.data.voc);
             lv_label_set_text(ui.voc_value, value);
         }
-
-        if (last_hour != time.hour)
+        const int link_status = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
+        if (link_status != CYW43_LINK_UP)
         {
-            char request[128];
-            sniprintf(request, 128, "/v1/forecast.json?key=%s&q=%s&days=3", settings.weatherapi_key, settings.query);
-            data = https_get_request("api.weatherapi.com", request, NULL);
-            if (data)
+            if (link_status != CYW43_LINK_JOIN)
+                cyw43_arch_wifi_connect_async(settings.ap_name, settings.password, CYW43_AUTH_WPA2_AES_PSK);
+            cyw43_arch_poll();
+        }
+        else
+        {
+            if (last_refresh_hour_timeapi != time.hour)
             {
-                last_hour = time.hour;
-                struct weather_forecast forecast;
-                forecast.valid = false;
-                json_parse(data, weather_api_handler, &forecast);
-                free(data);
-                for (int i = 0; i < 3; i++)
+                char *data = https_get_request("worldtimeapi.org", "/api/ip", NULL);
+                if (data)
                 {
-                    lv_chart_set_range(
-                        ui.days[i].temp,
-                        LV_CHART_AXIS_PRIMARY_Y,
-                        min_float(min_float_array(&forecast.day[i].hour[0].temp, sizeof(forecast.day[i].hour[0]), 24), min_float_array(&forecast.day[i].hour[0].feelslike_temp, sizeof(forecast.day[i].hour[0]), 24)),
-                        max_float(max_float_array(&forecast.day[i].hour[0].temp, sizeof(forecast.day[i].hour[0]), 24), max_float_array(&forecast.day[i].hour[0].feelslike_temp, sizeof(forecast.day[i].hour[0]), 24)));
-                    lv_chart_set_range(
-                        ui.days[i].wind,
-                        LV_CHART_AXIS_PRIMARY_Y,
-                        min_float_array(&forecast.day[i].hour[0].wind, sizeof(forecast.day[i].hour[0]), 24),
-                        max_float_array(&forecast.day[i].hour[0].wind, sizeof(forecast.day[i].hour[0]), 24));
-                    lv_chart_set_range(
-                        ui.days[i].pressure,
-                        LV_CHART_AXIS_PRIMARY_Y,
-                        min_int_array(&forecast.day[i].hour[0].pressure, sizeof(forecast.day[i].hour[0]), 24),
-                        max_int_array(&forecast.day[i].hour[0].pressure, sizeof(forecast.day[i].hour[0]), 24));
-                    lv_chart_set_range(
-                        ui.days[i].humidity,
-                        LV_CHART_AXIS_PRIMARY_Y,
-                        min_int_array(&forecast.day[i].hour[0].humidity, sizeof(forecast.day[i].hour[0]), 24),
-                        max_int_array(&forecast.day[i].hour[0].humidity, sizeof(forecast.day[i].hour[0]), 24));
-                    lv_chart_set_range(
-                        ui.days[i].rain,
-                        LV_CHART_AXIS_PRIMARY_Y,
-                        min_int(min_int_array(&forecast.day[i].hour[0].chance_of_rain, sizeof(forecast.day[i].hour[0]), 24), min_int_array(&forecast.day[i].hour[0].chance_of_snow, sizeof(forecast.day[i].hour[0]), 24)),
-                        max_int(max_int_array(&forecast.day[i].hour[0].chance_of_rain, sizeof(forecast.day[i].hour[0]), 24), max_int_array(&forecast.day[i].hour[0].chance_of_snow, sizeof(forecast.day[i].hour[0]), 24)));
-                    for (int j = 0; j < 24; j++)
+                    json_parse(data, world_time_api_handler, &time);
+                    rtc_set_datetime(&time);
+                    last_refresh_hour_timeapi = time.hour;
+                    free(data);
+                }
+            }
+            else if (last_refresh_hour_weatherapi != time.hour)
+            {
+                char request[128];
+                sniprintf(request, 128, "/v1/forecast.json?key=%s&q=%s&days=3", settings.weatherapi_key, settings.query);
+                char *data = https_get_request("api.weatherapi.com", request, NULL);
+                if (data)
+                {
+                    struct weather_forecast forecast;
+                    forecast.valid = false;
+                    json_parse(data, weather_api_handler, &forecast);
+                    free(data);
+                    if (forecast.valid)
                     {
-                        ui.days[i].temp_series[0]->y_points[j] = forecast.day[i].hour[j].temp;
-                        ui.days[i].temp_series[1]->y_points[j] = forecast.day[i].hour[j].feelslike_temp;
-                        ui.days[i].wind_series[0]->y_points[j] = forecast.day[i].hour[j].wind;
-                        ui.days[i].pressure_series[0]->y_points[j] = forecast.day[i].hour[j].pressure;
-                        ui.days[i].humidity_series[0]->y_points[j] = forecast.day[i].hour[j].humidity;
-                        ui.days[i].rain_series[0]->y_points[j] = forecast.day[i].hour[j].chance_of_rain;
-                        ui.days[i].rain_series[1]->y_points[j] = forecast.day[i].hour[j].chance_of_snow;
+                        last_refresh_hour_weatherapi = time.hour;
+                        for (int i = 0; i < 3; i++)
+                        {
+                            lv_chart_set_range(
+                                ui.days[i].temp,
+                                LV_CHART_AXIS_PRIMARY_Y,
+                                min_float(min_float_array(&forecast.day[i].hour[0].temp, sizeof(forecast.day[i].hour[0]), 24), min_float_array(&forecast.day[i].hour[0].feelslike_temp, sizeof(forecast.day[i].hour[0]), 24)),
+                                max_float(max_float_array(&forecast.day[i].hour[0].temp, sizeof(forecast.day[i].hour[0]), 24), max_float_array(&forecast.day[i].hour[0].feelslike_temp, sizeof(forecast.day[i].hour[0]), 24)));
+                            lv_chart_set_range(
+                                ui.days[i].wind,
+                                LV_CHART_AXIS_PRIMARY_Y,
+                                min_float_array(&forecast.day[i].hour[0].wind, sizeof(forecast.day[i].hour[0]), 24),
+                                max_float_array(&forecast.day[i].hour[0].wind, sizeof(forecast.day[i].hour[0]), 24));
+                            lv_chart_set_range(
+                                ui.days[i].pressure,
+                                LV_CHART_AXIS_PRIMARY_Y,
+                                min_int_array(&forecast.day[i].hour[0].pressure, sizeof(forecast.day[i].hour[0]), 24),
+                                max_int_array(&forecast.day[i].hour[0].pressure, sizeof(forecast.day[i].hour[0]), 24));
+                            lv_chart_set_range(
+                                ui.days[i].humidity,
+                                LV_CHART_AXIS_PRIMARY_Y,
+                                min_int_array(&forecast.day[i].hour[0].humidity, sizeof(forecast.day[i].hour[0]), 24),
+                                max_int_array(&forecast.day[i].hour[0].humidity, sizeof(forecast.day[i].hour[0]), 24));
+                            lv_chart_set_range(
+                                ui.days[i].rain,
+                                LV_CHART_AXIS_PRIMARY_Y,
+                                min_int(min_int_array(&forecast.day[i].hour[0].chance_of_rain, sizeof(forecast.day[i].hour[0]), 24), min_int_array(&forecast.day[i].hour[0].chance_of_snow, sizeof(forecast.day[i].hour[0]), 24)),
+                                max_int(max_int_array(&forecast.day[i].hour[0].chance_of_rain, sizeof(forecast.day[i].hour[0]), 24), max_int_array(&forecast.day[i].hour[0].chance_of_snow, sizeof(forecast.day[i].hour[0]), 24)));
+                            for (int j = 0; j < 24; j++)
+                            {
+                                ui.days[i].temp_series[0]->y_points[j] = forecast.day[i].hour[j].temp;
+                                ui.days[i].temp_series[1]->y_points[j] = forecast.day[i].hour[j].feelslike_temp;
+                                ui.days[i].wind_series[0]->y_points[j] = forecast.day[i].hour[j].wind;
+                                ui.days[i].pressure_series[0]->y_points[j] = forecast.day[i].hour[j].pressure;
+                                ui.days[i].humidity_series[0]->y_points[j] = forecast.day[i].hour[j].humidity;
+                                ui.days[i].rain_series[0]->y_points[j] = forecast.day[i].hour[j].chance_of_rain;
+                                ui.days[i].rain_series[1]->y_points[j] = forecast.day[i].hour[j].chance_of_snow;
+                            }
+                            lv_chart_refresh(ui.days[i].temp);
+                            lv_chart_refresh(ui.days[i].wind);
+                            lv_chart_refresh(ui.days[i].pressure);
+                            lv_chart_refresh(ui.days[i].humidity);
+                            lv_chart_refresh(ui.days[i].rain);
+                        }
                     }
-                    lv_chart_refresh(ui.days[i].temp);
-                    lv_chart_refresh(ui.days[i].wind);
-                    lv_chart_refresh(ui.days[i].pressure);
-                    lv_chart_refresh(ui.days[i].humidity);
-                    lv_chart_refresh(ui.days[i].rain);
                 }
             }
         }
